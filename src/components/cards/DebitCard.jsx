@@ -1,9 +1,12 @@
 import { Snowflake } from 'lucide-react'
 
-export default function DebitCard({ variant, name, subtitle, number, frozen }) {
+export default function DebitCard({ variant, name, subtitle, number, frozen, onClick }) {
   const primary = variant === 'primary'
   return (
-    <div className="relative">
+    <button
+      onClick={onClick}
+      className="block w-full text-left relative active:scale-[0.99] transition"
+    >
       <div className={`relative rounded-3xl p-5 border shadow-card overflow-hidden h-[210px] ${
         primary
           ? 'bg-gradient-to-br from-[#0E1A30] via-trustnavy to-[#0a1326] border-white/10'
@@ -74,6 +77,7 @@ export default function DebitCard({ variant, name, subtitle, number, frozen }) {
           </div>
         )}
       </div>
-    </div>
+      <p className="absolute bottom-2 right-3 text-[9px] text-white/60 font-bold pointer-events-none">Tap card for options</p>
+    </button>
   )
 }

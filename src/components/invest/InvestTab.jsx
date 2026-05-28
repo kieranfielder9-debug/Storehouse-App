@@ -10,7 +10,7 @@ const PIES = [
   { key: 'global',  name: 'Ethical Global Blue-Chips', pct: 30, color: '#7CC8FF', desc: 'Screened global leaders. No alcohol/arms/gambling' }
 ]
 
-export default function InvestTab({ onOpenPie, flashToast }) {
+export default function InvestTab({ onOpenPie, onOpenStock, onOpenValues, flashToast }) {
   return (
     <div className="space-y-5 pt-2">
       <SectionHeading
@@ -20,8 +20,8 @@ export default function InvestTab({ onOpenPie, flashToast }) {
 
       <PortfolioPie pies={PIES} onSlice={onOpenPie} />
       <AutoCopyLeaderboard flashToast={flashToast} />
-      <Watchlist />
-      <AISuggestions />
+      <Watchlist onOpenStock={onOpenStock} flashToast={flashToast} />
+      <AISuggestions onOpenValues={onOpenValues} />
     </div>
   )
 }

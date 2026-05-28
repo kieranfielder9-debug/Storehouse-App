@@ -1,10 +1,10 @@
 import { Coffee, HandCoins, ShoppingBag, ArrowUpRight } from 'lucide-react'
 
 const TXS = [
-  { id: 1, icon: Coffee,       name: 'Coffee at Leeds Centre',  sub: 'Costa Coffee • Today, 09:14', amt: -3.20,   color: 'bg-amber-500/15 text-amber-400',     clickable: true },
-  { id: 2, icon: HandCoins,    name: 'Tithe — Trinity Church',  sub: 'Standing Order • Today',      amt: -210.00, color: 'bg-teal-500/15 text-teal-400' },
-  { id: 3, icon: ShoppingBag,  name: "Sainsbury's",             sub: 'Groceries • Yesterday',       amt: -48.62,  color: 'bg-orange-500/15 text-orange-400' },
-  { id: 4, icon: ArrowUpRight, name: 'Salary — Riverbank Ltd',  sub: 'Income • 27 May',             amt: 2840.00, color: 'bg-emerald-500/15 text-emerald-400' }
+  { id: 1, icon: Coffee,       name: 'Coffee at Leeds Centre',  sub: 'Costa Coffee · Today, 09:14', amt: -3.20,   color: 'bg-amber-500/15 text-amber-400' },
+  { id: 2, icon: HandCoins,    name: 'Tithe — Huddersfield Christian Fellowship', sub: 'Standing Order · Today', amt: -210.00, color: 'bg-teal-500/15 text-teal-400' },
+  { id: 3, icon: ShoppingBag,  name: "Sainsbury's",             sub: 'Groceries · Yesterday',       amt: -48.62,  color: 'bg-orange-500/15 text-orange-400' },
+  { id: 4, icon: ArrowUpRight, name: 'Salary — Riverbank Ltd',  sub: 'Income · 27 May',             amt: 2840.00, color: 'bg-emerald-500/15 text-emerald-400' }
 ]
 
 export default function TransactionFeed({ onOpenTx }) {
@@ -18,10 +18,8 @@ export default function TransactionFeed({ onOpenTx }) {
         {TXS.map(t => (
           <button
             key={t.id}
-            onClick={t.clickable ? onOpenTx : undefined}
-            className={`w-full flex items-center gap-3 px-3.5 py-3 ${
-              t.clickable ? 'hover:bg-white/[0.03] active:bg-white/[0.05]' : ''
-            } transition`}
+            onClick={() => onOpenTx?.(t)}
+            className="w-full flex items-center gap-3 px-3.5 py-3 hover:bg-white/[0.03] active:bg-white/[0.05] transition"
           >
             <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${t.color}`}>
               <t.icon className="h-4 w-4" />
@@ -34,7 +32,7 @@ export default function TransactionFeed({ onOpenTx }) {
               <p className={`text-[13px] font-bold ${t.amt > 0 ? 'text-emerald-400' : 'text-white'}`}>
                 {t.amt > 0 ? '+' : ''}£{Math.abs(t.amt).toFixed(2)}
               </p>
-              {t.clickable && <p className="text-[9px] text-teal2 mt-0.5">Tap to manage</p>}
+              <p className="text-[9px] text-teal2 mt-0.5">Tap to manage</p>
             </div>
           </button>
         ))}

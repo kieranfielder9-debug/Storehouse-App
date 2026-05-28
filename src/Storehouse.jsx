@@ -7,15 +7,31 @@ import BrandHeader from './components/BrandHeader.jsx'
 import BottomNav from './components/BottomNav.jsx'
 import Toast from './components/ui/Toast.jsx'
 
+import SignInScreen from './components/auth/SignInScreen.jsx'
+
 import DashboardTab from './components/dashboard/DashboardTab.jsx'
 import InvestTab from './components/invest/InvestTab.jsx'
 import CardsTab from './components/cards/CardsTab.jsx'
 import CapitalTab from './components/capital/CapitalTab.jsx'
 
+import ProfileMenu from './components/profile/ProfileMenu.jsx'
+import AccountView from './components/profile/AccountView.jsx'
+import PreferencesView from './components/profile/PreferencesView.jsx'
+import { ReferView, StatementsView, HelpView } from './components/profile/SimpleView.jsx'
+
+import NotificationsDrawer from './components/notifications/NotificationsDrawer.jsx'
+
 import WeeklyWrapModal from './modals/WeeklyWrapModal.jsx'
 import TransactionModal from './modals/TransactionModal.jsx'
 import PieDetailModal from './modals/PieDetailModal.jsx'
 import InvestAmountModal from './modals/InvestAmountModal.jsx'
+import BalanceDetailModal from './modals/BalanceDetailModal.jsx'
+import BudgetDetailModal from './modals/BudgetDetailModal.jsx'
+import PayTransferModal from './modals/PayTransferModal.jsx'
+import GiveModal from './modals/GiveModal.jsx'
+import StockDetailModal from './modals/StockDetailModal.jsx'
+import CardOptionsModal from './modals/CardOptionsModal.jsx'
+import ValuesQuizModal from './modals/ValuesQuizModal.jsx'
 
 const TABS = [
   { key: 'dashboard', label: 'Home',    icon: Home },
@@ -25,17 +41,42 @@ const TABS = [
 ]
 
 export default function Storehouse() {
+  const [signedIn, setSignedIn] = useState(false)
   const [activeTab, setActiveTab] = useState('dashboard')
   const [toast, setToast] = useState(null)
+
+  // overlays
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [profileView, setProfileView] = useState(null) // 'account' | 'preferences' | 'refer' | 'statements' | 'help'
+  const [notifOpen, setNotifOpen] = useState(false)
 
   const [wrapOpen, setWrapOpen] = useState(false)
   const [txOpen, setTxOpen] = useState(false)
   const [pieDetail, setPieDetail] = useState(null)
   const [investAmountOpen, setInvestAmountOpen] = useState(null)
+  const [balanceDetail, setBalanceDetail] = useState(null)
+  const [budgetOpen, setBudgetOpen] = useState(false)
+  const [payOpen, setPayOpen] = useState(false)
+  const [giveOpen, setGiveOpen] = useState(false)
+  const [stockDetail, setStockDetail] = useState(null)
+  const [cardOptions, setCardOptions] = useState(null)
+  const [valuesOpen, setValuesOpen] = useState(false)
 
   const flashToast = (msg) => {
     setToast({ msg, id: Date.now() })
     setTimeout(() => setToast(null), 2400)
+  }
+
+  // sign in / out
+  if (!signedIn) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-6">
+        <PhoneFrame>
+          <StatusBar />
+          <SignInScreen onSignIn={() => setSignedIn(true)} />
+        </PhoneFrame>
+      </div>
+    )
   }
 
   return (
@@ -47,24 +88,44 @@ export default function Storehouse() {
 
       <PhoneFrame>
         <StatusBar />
-        <BrandHeader />
+        <BrandHeader
+          unreadCount={2}
+          onHome={() => { setActiveTab('dashboard'); flashToast('Home') }}
+          onBell={() => setNotifOpen(true)}
+          onProfile={() => setProfileOpen(true)}
+        />
 
         <main className="flex-1 overflow-y-auto no-scrollbar pb-32 px-5">
           {activeTab === 'dashboard' && (
             <DashboardTab
               onOpenWrap={() => setWrapOpen(true)}
               onOpenTx={() => setTxOpen(true)}
+              onOpenBalance={(kind) => setBalanceDetail(kind)}
+              onOpenBudget={() => setBudgetOpen(true)}
+              onPay={() => setPayOpen(true)}
+              onGive={() => setGiveOpen(true)}
+              onQR={() => setPayOpen(true)}
+              onTopUp={() => flashToast('Top-up flow opened')}
+              onOpenChild={() => { setActiveTab('cards'); flashToast("Opening Ethan's Wisdom Wallet") }}
+              flashToast={flashToast}
             />
           )}
           {activeTab === 'invest' && (
             <InvestTab
-              onOpenPie={(p) => setPieDetail(p)}
+              onOpenPie={setPieDetail}
+              onOpenStock={setStockDetail}
+              onOpenValues={() => setValuesOpen(true)}
               flashToast={flashToast}
             />
           )}
-          {activeTab === 'cards' && <CardsTab flashToast={flashToast} />}
+          {activeTab === 'cards' && (
+            <CardsTab
+              flashToast={flashToast}
+              onOpenCardOptions={setCardOptions}
+            />
+          )}
           {activeTab === 'capital' && (
-            <CapitalTab onInvest={(item) => setInvestAmountOpen(item)} />
+            <CapitalTab onInvest={setInvestAmountOpen} flashToast={flashToast} />
           )}
         </main>
 
@@ -72,17 +133,45 @@ export default function Storehouse() {
 
         {toast && <Toast key={toast.id} message={toast.msg} />}
 
-        {wrapOpen && <WeeklyWrapModal onClose={() => setWrapOpen(false)} />}
-        {txOpen && <TransactionModal onClose={() => setTxOpen(false)} flashToast={flashToast} />}
-        {pieDetail && <PieDetailModal pie={pieDetail} onClose={() => setPieDetail(null)} />}
+        {/* Profile menu + sub-views */}
+        {profileOpen && (
+          <ProfileMenu
+            onClose={() => setProfileOpen(false)}
+            onSelect={(view) => { setProfileView(view); setProfileOpen(false) }}
+            onSignOut={() => { setProfileOpen(false); setSignedIn(false); flashToast('Signed out') }}
+          />
+        )}
+        {profileView === 'account'     && <AccountView     onBack={() => setProfileView(null)} flashToast={flashToast} />}
+        {profileView === 'preferences' && <PreferencesView onBack={() => setProfileView(null)} flashToast={flashToast} />}
+        {profileView === 'refer'       && <ReferView       onBack={() => setProfileView(null)} flashToast={flashToast} />}
+        {profileView === 'statements'  && <StatementsView  onBack={() => setProfileView(null)} flashToast={flashToast} />}
+        {profileView === 'help'        && <HelpView        onBack={() => setProfileView(null)} flashToast={flashToast} />}
+
+        {/* Notifications */}
+        {notifOpen && <NotificationsDrawer onClose={() => setNotifOpen(false)} flashToast={flashToast} />}
+
+        {/* Dashboard modals */}
+        {wrapOpen      && <WeeklyWrapModal     onClose={() => setWrapOpen(false)} />}
+        {txOpen        && <TransactionModal    onClose={() => setTxOpen(false)} flashToast={flashToast} />}
+        {balanceDetail && <BalanceDetailModal  kind={balanceDetail} onClose={() => setBalanceDetail(null)} flashToast={flashToast} />}
+        {budgetOpen    && <BudgetDetailModal   onClose={() => setBudgetOpen(false)} flashToast={flashToast} />}
+        {payOpen       && <PayTransferModal    onClose={() => setPayOpen(false)} flashToast={flashToast} />}
+        {giveOpen      && <GiveModal           onClose={() => setGiveOpen(false)} flashToast={flashToast} />}
+
+        {/* Invest modals */}
+        {pieDetail     && <PieDetailModal      pie={pieDetail} onClose={() => setPieDetail(null)} />}
+        {stockDetail   && <StockDetailModal    stock={stockDetail} onClose={() => setStockDetail(null)} flashToast={flashToast} />}
+        {valuesOpen    && <ValuesQuizModal     onClose={() => setValuesOpen(false)} flashToast={flashToast} />}
+
+        {/* Cards modal */}
+        {cardOptions   && <CardOptionsModal    card={cardOptions} onClose={() => setCardOptions(null)} flashToast={flashToast} />}
+
+        {/* Capital modal */}
         {investAmountOpen && (
           <InvestAmountModal
             item={investAmountOpen}
             onClose={() => setInvestAmountOpen(null)}
-            onConfirm={() => {
-              setInvestAmountOpen(null)
-              flashToast('Investment placed — Welcome, steward.')
-            }}
+            onConfirm={() => { setInvestAmountOpen(null); flashToast('Investment placed — Welcome, steward.') }}
           />
         )}
       </PhoneFrame>
