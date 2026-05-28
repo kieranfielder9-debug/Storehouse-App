@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: radial-gradient(1200px 800px at 20% 0%, #18243d 0%, #0B0F19 60%);
+  color: #E6EAF2;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbars in the phone frame */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
