@@ -8,6 +8,7 @@ import BottomNav from './components/BottomNav.jsx'
 import Toast from './components/ui/Toast.jsx'
 
 import SignInScreen from './components/auth/SignInScreen.jsx'
+import InstallPrompt from './components/InstallPrompt.jsx'
 
 import DashboardTab from './components/dashboard/DashboardTab.jsx'
 import InvestTab from './components/invest/InvestTab.jsx'
@@ -132,6 +133,8 @@ export default function Storehouse() {
         <BottomNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
         {toast && <Toast key={toast.id} message={toast.msg} />}
+
+        <InstallPrompt />
 
         {/* Profile menu + sub-views */}
         {profileOpen && (
