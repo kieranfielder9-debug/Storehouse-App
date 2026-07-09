@@ -85,18 +85,49 @@ export const provider = {
     if (isLive()) return cache.user
     return read(K.user, null)
   },
+  /** Sign in to an EXISTING account only. Throws Supabase's real error
+   *  message (e.g. "Invalid login credentials") on wrong password/unknown
+   *  email — never silently falls back to creating a new account. */
   async signIn(email, password) {
     if (isLive()) {
       const sb = getSupabase()
-      let { error } = await sb.auth.signInWithPassword({ email, password })
-      if (error) { // first-time users: create the account, trigger provisions rows
-        const res = await sb.auth.signUp({ email, password, options: { data: { name: 'Michael Gladstone' } } })
-        if (res.error) throw res.error
-      }
+      const { error } = await sb.auth.signInWithPassword({ email, password })
+      if (error) throw error
       await refreshLive()
+      if (!cache.user) throw new Error('Signed in, but no session was returned. Please try again.')
       return
     }
     write(K.user, { id: 'sandbox-user', email, name: 'Michael Gladstone' })
+  },
+
+  /** Create a NEW account. Returns { needsEmailConfirmation }. Throws a
+   *  friendly error if the email is already registered (Supabase returns
+   *  this as an empty `identities` array rather than a real error, to
+   *  avoid leaking which emails exist — we translate that here). */
+  async signUp(email, password, name = 'Steward') {
+    if (isLive()) {
+      const sb = getSupabase()
+      const res = await sb.auth.signUp({ email, password, options: { data: { name } } })
+      if (res.error) throw res.error
+      const alreadyRegistered = res.data?.user?.identities?.length === 0
+      if (alreadyRegistered) throw new Error('An account with this email already exists — try signing in instead.')
+      if (!res.data.session) return { needsEmailConfirmation: true }
+      await refreshLive()
+      return { needsEmailConfirmation: false }
+    }
+    write(K.user, { id: 'sandbox-user', email, name: 'Michael Gladstone' })
+    return { needsEmailConfirmation: false }
+  },
+
+  /** Send a password-reset email. No-ops safely in sandbox mode. */
+  async resetPassword(email) {
+    if (!email) throw new Error('Enter your email address first.')
+    if (isLive()) {
+      const { error } = await getSupabase().auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
+      if (error) throw error
+      return
+    }
+    // Sandbox: nothing to reset — caller shows a sandbox-specific message.
   },
   async signOut() {
     if (isLive()) { await getSupabase().auth.signOut(); cache.user = null; emit(); return }

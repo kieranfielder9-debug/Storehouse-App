@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { ArrowRight, Eye, EyeOff, Fingerprint, Mail, Lock } from 'lucide-react'
 import StorehouseMark from '../StorehouseMark.jsx'
 
-export default function SignInScreen({ onSignIn }) {
+export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPassword, onFaceId, busy }) {
   const [email, setEmail] = useState('michael.gladstone@example.com')
-  const [password, setPassword] = useState('••••••••')
+  const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
 
   return (
@@ -49,7 +49,8 @@ export default function SignInScreen({ onSignIn }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 type={showPw ? 'text' : 'password'}
-                className="flex-1 bg-transparent text-white text-sm focus:outline-none"
+                placeholder="Enter your password"
+                className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder-white/25"
               />
               <button onClick={() => setShowPw(v => !v)}>
                 {showPw ? <EyeOff className="h-4 w-4 text-white/40" /> : <Eye className="h-4 w-4 text-white/40" />}
@@ -57,14 +58,15 @@ export default function SignInScreen({ onSignIn }) {
             </div>
           </div>
 
-          <button className="text-[11px] text-teal2 font-semibold">Forgot password?</button>
+          <button onClick={() => onForgotPassword(email)} className="text-[11px] text-teal2 font-semibold">Forgot password?</button>
         </div>
 
         <button
           onClick={() => onSignIn(email, password)}
-          className="mt-6 w-full py-4 rounded-2xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow flex items-center justify-center gap-2"
+          disabled={busy}
+          className="mt-6 w-full py-4 rounded-2xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow flex items-center justify-center gap-2 disabled:opacity-60"
         >
-          Sign In <ArrowRight className="h-4 w-4" />
+          {busy ? 'Signing in…' : 'Sign In'} <ArrowRight className="h-4 w-4" />
         </button>
 
         <div className="mt-5 flex items-center gap-3">
@@ -74,7 +76,7 @@ export default function SignInScreen({ onSignIn }) {
         </div>
 
         <button
-          onClick={onSignIn}
+          onClick={onFaceId}
           className="mt-5 w-full py-3.5 rounded-2xl bg-trustnavy border border-white/10 text-white font-semibold text-sm flex items-center justify-center gap-2"
         >
           <Fingerprint className="h-4 w-4 text-teal2" /> Sign in with Face ID
@@ -83,7 +85,7 @@ export default function SignInScreen({ onSignIn }) {
 
       <div className="pb-10 px-7 text-center relative">
         <p className="text-[11px] text-white/40">
-          New to Storehouse? <button onClick={() => onSignIn(email, password)} className="text-teal2 font-bold">Create account</button>
+          New to Storehouse? <button onClick={() => onCreateAccount(email, password)} disabled={busy} className="text-teal2 font-bold disabled:opacity-60">Create account</button>
         </p>
         <p className="mt-3 text-[10px] text-white/30">
           🔒 We do not sell your data. Your financial stewardship is private.

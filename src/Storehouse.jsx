@@ -75,27 +75,67 @@ export default function Storehouse() {
   const [cardOptions, setCardOptions] = useState(null)
   const [valuesOpen, setValuesOpen] = useState(false)
 
+  const [authBusy, setAuthBusy] = useState(false)
+
   const flashToast = (msg) => {
     setToast({ msg, id: Date.now() })
-    setTimeout(() => setToast(null), 2400)
+    setTimeout(() => setToast(null), 3600)
   }
 
-  // sign in / out — provider handles sandbox (instant) vs Supabase (real auth)
+  // sign in / up / reset — provider handles sandbox (instant) vs Supabase (real auth).
+  // Each action is explicit: Sign In never silently creates an account, and
+  // every failure surfaces a real, visible message (see Toast render below —
+  // it must be present on THIS branch too, not just the signed-in view).
   const handleSignIn = async (email, password) => {
+    setAuthBusy(true)
     try {
       await provider.signIn(email, password)
       setSignedIn(true)
     } catch (e) {
       flashToast(e?.message || 'Sign-in failed')
+    } finally {
+      setAuthBusy(false)
     }
   }
+
+  const handleCreateAccount = async (email, password) => {
+    if (!password) { flashToast('Enter a password to create your account.'); return }
+    setAuthBusy(true)
+    try {
+      const { needsEmailConfirmation } = await provider.signUp(email, password)
+      if (needsEmailConfirmation) flashToast('Check your email to confirm your account, then sign in.')
+      else setSignedIn(true)
+    } catch (e) {
+      flashToast(e?.message || 'Could not create account')
+    } finally {
+      setAuthBusy(false)
+    }
+  }
+
+  const handleForgotPassword = async (email) => {
+    try {
+      await provider.resetPassword(email)
+      flashToast(provider.mode() === 'live' ? 'Password reset email sent.' : 'Sandbox mode: no email is sent here.')
+    } catch (e) {
+      flashToast(e?.message || 'Could not send reset email')
+    }
+  }
+
+  const handleFaceId = () => flashToast('Face ID demo — use email sign-in for a live account.')
 
   if (!signedIn) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-6">
         <PhoneFrame>
           <StatusBar />
-          <SignInScreen onSignIn={handleSignIn} />
+          <SignInScreen
+            onSignIn={handleSignIn}
+            onCreateAccount={handleCreateAccount}
+            onForgotPassword={handleForgotPassword}
+            onFaceId={handleFaceId}
+            busy={authBusy}
+          />
+          {toast && <Toast key={toast.id} message={toast.msg} />}
         </PhoneFrame>
       </div>
     )
