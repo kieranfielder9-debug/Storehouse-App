@@ -1,0 +1,52 @@
+<svg viewBox="0 0 1400 1400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bars2" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#0D9488"/>
+      <stop offset="1" stop-color="#14B8A6"/>
+    </linearGradient>
+    <linearGradient id="barsMid2" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#14B8A6"/>
+      <stop offset="1" stop-color="#2DD4BF"/>
+    </linearGradient>
+    <linearGradient id="barsHigh2" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#2DD4BF"/>
+      <stop offset="1" stop-color="#5EEAD4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mark centred -->
+  <g transform="translate(188 100)">
+    <path
+      d="M 240 300 L 240 720 Q 240 830 340 875 L 490 940 Q 512 950 534 940 L 684 875 Q 784 830 784 720 L 784 300 L 512 130 Z"
+      fill="none"
+      stroke="#1D3557"
+      stroke-width="34"
+      stroke-linejoin="round"
+    />
+    <rect x="472" y="330" width="46" height="360" rx="4" fill="#1D3557"/>
+    <rect x="378" y="410" width="234" height="46" rx="4" fill="#1D3557"/>
+    <rect x="576" y="640" width="42" height="80"  rx="4" fill="url(#bars2)"/>
+    <rect x="632" y="580" width="42" height="140" rx="4" fill="url(#barsMid2)"/>
+    <rect x="688" y="500" width="42" height="220" rx="4" fill="url(#barsHigh2)"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="700" y="1200" text-anchor="middle"
+        font-family="Inter, -apple-system, sans-serif"
+        font-weight="900"
+        font-size="180"
+        letter-spacing="8"
+        fill="#1D3557">STOREHOUSE</text>
+
+  <!-- Divider -->
+  <line x1="380" y1="1265" x2="520" y2="1265" stroke="#0D9488" stroke-width="6" stroke-linecap="round"/>
+  <line x1="880" y1="1265" x2="1020" y2="1265" stroke="#0D9488" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Tagline -->
+  <text x="700" y="1300" text-anchor="middle"
+        font-family="Inter, -apple-system, sans-serif"
+        font-weight="700"
+        font-size="52"
+        letter-spacing="12"
+        fill="#0D9488">WHERE YOUR TREASURE IS</text>
+</svg>

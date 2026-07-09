@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Home, LineChart, CreditCard, Briefcase } from 'lucide-react'
+import { provider } from './backend/provider.js'
+import SandboxPanel from './components/dev/SandboxPanel.jsx'
+import ReflectionModal from './modals/ReflectionModal.jsx'
 
 import PhoneFrame from './components/PhoneFrame.jsx'
 import StatusBar from './components/StatusBar.jsx'
@@ -42,9 +45,18 @@ const TABS = [
 ]
 
 export default function Storehouse() {
-  const [signedIn, setSignedIn] = useState(false)
+  const [signedIn, setSignedIn] = useState(() => provider.hasSession())
   const [activeTab, setActiveTab] = useState('dashboard')
   const [toast, setToast] = useState(null)
+  const [reflectionOpen, setReflectionOpen] = useState(false)
+
+  // Weekly Stewardship Reflection: Sunday evenings (once/week) + sandbox trigger
+  useEffect(() => {
+    if (signedIn && provider.reflectionDueNow()) setReflectionOpen(true)
+    const openIt = () => setReflectionOpen(true)
+    window.addEventListener('sh-reflect', openIt)
+    return () => window.removeEventListener('sh-reflect', openIt)
+  }, [signedIn])
 
   // overlays
   const [profileOpen, setProfileOpen] = useState(false)
@@ -68,13 +80,22 @@ export default function Storehouse() {
     setTimeout(() => setToast(null), 2400)
   }
 
-  // sign in / out
+  // sign in / out — provider handles sandbox (instant) vs Supabase (real auth)
+  const handleSignIn = async (email, password) => {
+    try {
+      await provider.signIn(email, password)
+      setSignedIn(true)
+    } catch (e) {
+      flashToast(e?.message || 'Sign-in failed')
+    }
+  }
+
   if (!signedIn) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-6">
         <PhoneFrame>
           <StatusBar />
-          <SignInScreen onSignIn={() => setSignedIn(true)} />
+          <SignInScreen onSignIn={handleSignIn} />
         </PhoneFrame>
       </div>
     )
@@ -135,13 +156,15 @@ export default function Storehouse() {
         {toast && <Toast key={toast.id} message={toast.msg} />}
 
         <InstallPrompt />
+        <SandboxPanel flashToast={flashToast} />
+        {reflectionOpen && <ReflectionModal onClose={() => setReflectionOpen(false)} flashToast={flashToast} />}
 
         {/* Profile menu + sub-views */}
         {profileOpen && (
           <ProfileMenu
             onClose={() => setProfileOpen(false)}
             onSelect={(view) => { setProfileView(view); setProfileOpen(false) }}
-            onSignOut={() => { setProfileOpen(false); setSignedIn(false); flashToast('Signed out') }}
+            onSignOut={async () => { setProfileOpen(false); await provider.signOut(); setSignedIn(false) }}
           />
         )}
         {profileView === 'account'     && <AccountView     onBack={() => setProfileView(null)} flashToast={flashToast} />}

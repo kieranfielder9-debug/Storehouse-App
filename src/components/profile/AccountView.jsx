@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { User, Cake, Mail, Phone, Fingerprint, Building2, Check, Plus } from 'lucide-react'
+import { User, Cake, Mail, Phone, Fingerprint, Building2, Check, Plus, Landmark, ShieldCheck } from 'lucide-react'
 import ProfileScreen from './ProfileScreen.jsx'
 import ToggleRow from '../ui/ToggleRow.jsx'
 import Label from '../ui/Label.jsx'
+import { useStewardship } from '../../backend/useStewardship.js'
 
 const BANKS = [
   { name: 'Monzo',     last: '•• 4421', color: 'from-pink-500 to-rose-500',    connected: true },
@@ -13,6 +14,7 @@ const BANKS = [
 export default function AccountView({ onBack, flashToast }) {
   const [faceId, setFaceId] = useState(true)
   const [banks, setBanks] = useState(BANKS)
+  const { plaid, provider } = useStewardship()
 
   const toggleBank = (i) => {
     setBanks(b => b.map((x, idx) => idx === i ? { ...x, connected: !x.connected } : x))
@@ -71,6 +73,23 @@ export default function AccountView({ onBack, flashToast }) {
             </button>
           </div>
         ))}
+      </div>
+
+      <div className="mt-5 rounded-2xl bg-trustnavy border border-white/10 overflow-hidden">
+        <ToggleRow
+          icon={Landmark}
+          label={plaid.connected ? `Stewardship Source · ${plaid.institution}` : 'Stewardship Source (Plaid)'}
+          value={plaid.connected}
+          onToggle={async () => {
+            if (plaid.connected) { await provider.disconnectPlaid(); flashToast('Stewardship source disconnected') }
+            else { await provider.connectPlaid(); flashToast('Stewardship source connected') }
+          }}
+        />
+      </div>
+
+      <div className="mt-4 flex items-start gap-2 text-[10px] text-white/40 leading-snug px-1">
+        <ShieldCheck className="h-3 w-3 mt-0.5 flex-shrink-0 text-teal2/70" />
+        <p>We do not sell your data. Your financial stewardship is private.</p>
       </div>
 
       <button

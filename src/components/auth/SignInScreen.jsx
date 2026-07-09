@@ -61,7 +61,7 @@ export default function SignInScreen({ onSignIn }) {
         </div>
 
         <button
-          onClick={onSignIn}
+          onClick={() => onSignIn(email, password)}
           className="mt-6 w-full py-4 rounded-2xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow flex items-center justify-center gap-2"
         >
           Sign In <ArrowRight className="h-4 w-4" />
@@ -83,7 +83,10 @@ export default function SignInScreen({ onSignIn }) {
 
       <div className="pb-10 px-7 text-center relative">
         <p className="text-[11px] text-white/40">
-          New to Storehouse? <button onClick={onSignIn} className="text-teal2 font-bold">Create account</button>
+          New to Storehouse? <button onClick={() => onSignIn(email, password)} className="text-teal2 font-bold">Create account</button>
+        </p>
+        <p className="mt-3 text-[10px] text-white/30">
+          🔒 We do not sell your data. Your financial stewardship is private.
         </p>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { ChevronRight, ShoppingBag, HandCoins, Bus } from 'lucide-react'
 import CategoryBar from './CategoryBar.jsx'
 
-export default function BudgetCard({ onOpen }) {
+export default function BudgetCard({ onOpen, givingPct = 100 }) {
   const spent = 62
   const circumference = 2 * Math.PI * 38
   const dashOffset = circumference - (spent / 100) * circumference
@@ -45,7 +45,7 @@ export default function BudgetCard({ onOpen }) {
 
         <div className="flex-1 space-y-2.5">
           <CategoryBar icon={ShoppingBag} label="Groceries"      pct={80}  color="from-orange-400 to-orange-500" />
-          <CategoryBar icon={HandCoins}   label="Kingdom Giving" pct={100} color="from-teal1 to-teal2"          hilite />
+          <CategoryBar icon={HandCoins}   label="Kingdom Giving" pct={Math.round(givingPct)} color="from-teal1 to-teal2" hilite={givingPct >= 100} />
           <CategoryBar icon={Bus}         label="Transport"      pct={40}  color="from-blue-400 to-blue-500" />
         </div>
       </div>

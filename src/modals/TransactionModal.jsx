@@ -3,9 +3,11 @@ import {
   ChevronLeft, X, Coffee, Award, ChevronDown, Check,
   HandCoins, FileText, Plus, Receipt, Repeat, EyeOff, Users
 } from 'lucide-react'
+import { Scale } from 'lucide-react'
 import Label from '../components/ui/Label.jsx'
 import Tagchip from '../components/ui/Tagchip.jsx'
 import ToggleRow from '../components/ui/ToggleRow.jsx'
+import { provider } from '../backend/provider.js'
 
 const CATS = [
   { label: 'Food',   icon: Coffee    },
@@ -14,12 +16,15 @@ const CATS = [
 ]
 
 export default function TransactionModal({ onClose, flashToast }) {
-  const [category, setCategory] = useState('Food')
+  const txId = 1 // Coffee at Leeds Centre (seed row)
+  const row = provider.getLedger().find((r) => r.id === txId)
+  const [category, setCategory] = useState(row?.category || 'Food')
   const [showCatMenu, setShowCatMenu] = useState(false)
-  const [note, setNote] = useState('Morning catch-up with Sarah re: church plant')
+  const [note, setNote] = useState(row?.note ?? 'Morning catch-up with Sarah re: church plant')
   const [recurring, setRecurring] = useState(false)
   const [exclude, setExclude] = useState(false)
   const [split, setSplit] = useState(false)
+  const [contentment, setContentment] = useState(row?.is_contentment_satisfied ?? null) // true=Need, false=Want
 
   return (
     <div className="absolute inset-0 z-[55]">
@@ -113,6 +118,31 @@ export default function TransactionModal({ onClose, flashToast }) {
             <ChevronDown className="h-4 w-4 text-white/40 -rotate-90" />
           </button>
 
+          {/* Contentment check — single tap: Need (true) or Want (false) */}
+          <div className="mt-4 rounded-xl bg-navydeep border border-white/10 px-4 py-3 flex items-center gap-3">
+            <div className="h-8 w-8 rounded-lg bg-white/5 flex items-center justify-center">
+              <Scale className="h-4 w-4 text-white/70" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-white/90 font-medium leading-tight">Contentment check</p>
+              <p className="text-[10px] text-white/40">Was this a need or a want?</p>
+            </div>
+            <div className="flex gap-1 bg-trustnavy p-0.5 rounded-lg border border-white/10">
+              <button
+                onClick={() => setContentment(true)}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition ${
+                  contentment === true ? 'bg-gradient-to-r from-teal1 to-teal2 text-white shadow' : 'text-white/50'
+                }`}
+              >Need</button>
+              <button
+                onClick={() => setContentment(false)}
+                className={`px-3 py-1.5 rounded-md text-[11px] font-bold transition ${
+                  contentment === false ? 'bg-gradient-to-r from-gold to-amber-400 text-trustnavy shadow' : 'text-white/50'
+                }`}
+              >Want</button>
+            </div>
+          </div>
+
           <div className="mt-4 rounded-xl bg-navydeep border border-white/10 divide-y divide-white/5">
             <ToggleRow icon={Repeat} label="Make Recurring Payment"   value={recurring} onToggle={() => setRecurring(v => !v)} />
             <ToggleRow icon={EyeOff} label="Exclude from Analytics"   value={exclude}   onToggle={() => setExclude(v => !v)} />
@@ -120,7 +150,10 @@ export default function TransactionModal({ onClose, flashToast }) {
           </div>
 
           <button
-            onClick={() => { onClose(); flashToast('Transaction settings saved') }}
+            onClick={() => {
+              provider.updateLedger(txId, { category, note, is_contentment_satisfied: contentment })
+              onClose(); flashToast('Transaction settings saved')
+            }}
             className="mt-5 w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow"
           >
             Save Changes
