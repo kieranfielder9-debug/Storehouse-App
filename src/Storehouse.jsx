@@ -51,6 +51,13 @@ export default function Storehouse() {
   const [toast, setToast] = useState(null)
   const [reflectionOpen, setReflectionOpen] = useState(false)
 
+  // Keep `signedIn` reactive instead of a one-time read at mount: in live
+  // mode, provider.js clears its cache and emits when Supabase reports the
+  // session died server-side (revoked token, password changed elsewhere, a
+  // failed refresh) — without this, an already-open tab would keep showing
+  // cached ledger/goals data under a dead session. No-op in sandbox mode.
+  useEffect(() => provider.subscribe(() => setSignedIn(provider.hasSession())), [])
+
   // Weekly Stewardship Reflection: Sunday evenings (once/week) + sandbox trigger
   useEffect(() => {
     if (signedIn && provider.reflectionDueNow()) setReflectionOpen(true)

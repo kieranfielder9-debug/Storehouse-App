@@ -9,7 +9,10 @@
  *
  * Reactivity: subscribe(fn) fires on every mutation (local writes in sandbox,
  * postgres_changes realtime events in live mode) so dashboard stats update
- * without any page refresh.
+ * without any page refresh. In live mode it also fires when Supabase reports
+ * the session itself has died (SIGNED_OUT / a refresh with no session), so
+ * callers that gate UI on hasSession()/getUser() should subscribe rather
+ * than read those once — see Storehouse.jsx.
  */
 import { getSupabase, isLive } from './supabaseClient.js'
 
@@ -58,11 +61,26 @@ async function refreshLive() {
 function ensureRealtime() {
   if (realtimeReady || !isLive()) return
   realtimeReady = true
-  getSupabase()
-    .channel('sh-ledger')
+  const sb = getSupabase()
+  sb.channel('sh-ledger')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ledger' }, refreshLive)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'stewardship_goals' }, refreshLive)
     .subscribe()
+  // A session can go stale server-side (refresh token revoked, password
+  // changed elsewhere, a failed background refresh) with no postgres_changes
+  // event at all. supabase-js fires SIGNED_OUT (or TOKEN_REFRESHED with no
+  // session) on the auth client itself in that case — listen for it so the
+  // in-memory cache is dropped and subscribers (see `subscribe` below) hear
+  // about it, instead of an already-open tab quietly holding onto cached
+  // ledger/goals data under a dead session.
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
+      cache.user = null
+      cache.ledger = []
+      cache.goals = SEED_GOALS
+      emit()
+    }
+  })
   refreshLive()
 }
 
