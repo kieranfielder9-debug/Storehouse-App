@@ -6,13 +6,20 @@ import { provider } from '../backend/provider.js'
  *  or on demand from the Sandbox. Saves straight into the Reflections table. */
 export default function ReflectionModal({ onClose, flashToast }) {
   const [content, setContent] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const save = async () => {
-    if (!content.trim()) return
-    await provider.addReflection(content.trim())
-    provider.markReflectionShown()
-    flashToast('Reflection saved')
-    onClose()
+    if (!content.trim() || saving) return
+    setSaving(true)
+    try {
+      await provider.addReflection(content.trim())
+      provider.markReflectionShown()
+      flashToast('Reflection saved')
+      onClose()
+    } catch (e) {
+      flashToast(e?.message || 'Could not save reflection')
+      setSaving(false)
+    }
   }
 
   return (
@@ -53,12 +60,12 @@ export default function ReflectionModal({ onClose, flashToast }) {
           </button>
           <button
             onClick={save}
-            disabled={!content.trim()}
+            disabled={!content.trim() || saving}
             className={`py-3 rounded-xl text-sm font-bold ${
-              content.trim() ? 'bg-gradient-to-r from-teal1 to-teal2 text-white shadow-glow' : 'bg-white/5 text-white/30 cursor-not-allowed'
+              content.trim() && !saving ? 'bg-gradient-to-r from-teal1 to-teal2 text-white shadow-glow' : 'bg-white/5 text-white/30 cursor-not-allowed'
             }`}
           >
-            Save reflection
+            {saving ? 'Saving…' : 'Save reflection'}
           </button>
         </div>
       </div>

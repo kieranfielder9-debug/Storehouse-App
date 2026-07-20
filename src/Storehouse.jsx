@@ -214,7 +214,16 @@ export default function Storehouse() {
           <ProfileMenu
             onClose={() => setProfileOpen(false)}
             onSelect={(view) => { setProfileView(view); setProfileOpen(false) }}
-            onSignOut={async () => { setProfileOpen(false); await provider.signOut(); setSignedIn(false) }}
+            onSignOut={async () => {
+              setProfileOpen(false)
+              try {
+                await provider.signOut()
+              } catch (e) {
+                flashToast(e?.message || 'Sign-out ran into an issue, but you have been signed out locally.')
+              } finally {
+                setSignedIn(false)
+              }
+            }}
           />
         )}
         {profileView === 'account'     && <AccountView     onBack={() => setProfileView(null)} flashToast={flashToast} />}

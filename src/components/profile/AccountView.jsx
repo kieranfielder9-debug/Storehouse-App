@@ -96,8 +96,12 @@ export default function AccountView({ onBack, flashToast }) {
           label={plaid.connected ? `Stewardship Source · ${plaid.institution}` : 'Stewardship Source (Plaid)'}
           value={plaid.connected}
           onToggle={async () => {
-            if (plaid.connected) { await provider.disconnectPlaid(); flashToast('Stewardship source disconnected') }
-            else { await provider.connectPlaid(); flashToast('Stewardship source connected') }
+            try {
+              if (plaid.connected) { await provider.disconnectPlaid(); flashToast('Stewardship source disconnected') }
+              else { await provider.connectPlaid(); flashToast('Stewardship source connected') }
+            } catch (e) {
+              flashToast(e?.message || 'Connection cancelled')
+            }
           }}
         />
       </div>

@@ -25,6 +25,20 @@ export default function TransactionModal({ onClose, flashToast }) {
   const [exclude, setExclude] = useState(false)
   const [split, setSplit] = useState(false)
   const [contentment, setContentment] = useState(row?.is_contentment_satisfied ?? null) // true=Need, false=Want
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      await provider.updateLedger(txId, { category, note, is_contentment_satisfied: contentment })
+      flashToast('Transaction settings saved')
+      onClose()
+    } catch (e) {
+      flashToast(e?.message || 'Could not save transaction settings')
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="absolute inset-0 z-[55]">
@@ -150,13 +164,11 @@ export default function TransactionModal({ onClose, flashToast }) {
           </div>
 
           <button
-            onClick={() => {
-              provider.updateLedger(txId, { category, note, is_contentment_satisfied: contentment })
-              onClose(); flashToast('Transaction settings saved')
-            }}
-            className="mt-5 w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow"
+            onClick={handleSave}
+            disabled={saving}
+            className="mt-5 w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow disabled:opacity-60"
           >
-            Save Changes
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </div>
