@@ -1,10 +1,34 @@
 import { useState } from 'react'
 import { ShieldCheck, Snowflake, BadgePercent, BookOpen, Check } from 'lucide-react'
 import ToggleRow from '../ui/ToggleRow.jsx'
+import { useStewardship } from '../../backend/useStewardship.js'
+
+const REWARD_MEMBER = 'Ethan'
+const REWARD_REASON = 'Curriculum modules completed'
 
 export default function ControlCenter({ freeze, setFreeze, flashToast }) {
   const [limit, setLimit] = useState(20)
-  const [approved, setApproved] = useState(false)
+  const [approving, setApproving] = useState(false)
+  const [justApproved, setJustApproved] = useState(false)
+  const { provider, householdMembers, rewardRequests } = useStewardship()
+
+  const member = householdMembers.find((m) => m.name === REWARD_MEMBER)
+  const memberRewards = member ? rewardRequests.filter((r) => r.household_member_id === member.id) : []
+
+  const handleApprove = async () => {
+    if (approving) return
+    setApproving(true)
+    try {
+      await provider.approveReward({ memberName: REWARD_MEMBER, amount: 5, reason: REWARD_REASON })
+      flashToast(`£5 reward sent to ${REWARD_MEMBER}`)
+      setJustApproved(true)
+      setTimeout(() => setJustApproved(false), 2000)
+    } catch (e) {
+      flashToast(e?.message || 'Could not approve reward')
+    } finally {
+      setApproving(false)
+    }
+  }
 
   return (
     <div className="rounded-2xl bg-trustnavy border border-white/10 overflow-hidden shadow-card">
@@ -62,22 +86,36 @@ export default function ControlCenter({ freeze, setFreeze, flashToast }) {
           <p className="text-[10px] text-white/40">2 modules completed this week</p>
         </div>
         <button
-          onClick={() => {
-            setApproved(true)
-            flashToast('£5 reward sent to Ethan')
-            setTimeout(() => setApproved(false), 2000)
-          }}
+          onClick={handleApprove}
+          disabled={approving}
           className={`px-3 py-2 rounded-xl text-[11px] font-bold transition ${
-            approved
+            justApproved
               ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/40'
               : 'bg-gradient-to-r from-gold to-amber-400 text-trustnavy shadow border border-white/20'
-          }`}
+          } ${approving ? 'opacity-60 cursor-wait' : ''}`}
         >
-          {approved
+          {justApproved
             ? <span className="flex items-center gap-1"><Check className="h-3 w-3" />Sent</span>
-            : 'Approve £5'}
+            : approving ? 'Sending…' : 'Approve £5'}
         </button>
       </div>
+
+      {memberRewards.length > 0 && (
+        <div className="px-4 py-3 border-t border-white/5">
+          <p className="text-[10px] uppercase tracking-widest text-white/30 font-bold mb-2">Reward History</p>
+          <div className="space-y-1.5">
+            {memberRewards.slice(0, 5).map((r) => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between text-[11px] bg-white/[0.03] rounded-lg px-2.5 py-2"
+              >
+                <span className="text-white/60">{r.reason || 'Reward'}</span>
+                <span className="text-emerald-400 font-semibold">£{Number(r.amount).toFixed(2)} approved</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

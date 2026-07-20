@@ -21,20 +21,22 @@ Constraint that shapes everything: time to invest, not capital. Every recommenda
 
 ## The team
 
-Ten specialist subagents live in `.claude/agents/` — each owns one domain and one phase-cluster of the roadmap above. Use the Agent tool with the matching `subagent_type` rather than doing specialist work directly:
+Ten specialist subagents live in `.claude/agents/` — each owns one domain and one phase-cluster of the roadmap above. Use the Agent tool with the matching `subagent_type` rather than doing specialist work directly. Ranked by current priority (P1 = act on first), not raw phase order — some low-cost, cross-cutting work (QA, security review, compliance) is pulled forward ahead of its "phase number" because it's cheap to do continuously and expensive to skip:
 
-| Agent | Owns |
-|---|---|
-| `platform-engineer` | Core app engineering, auth, Supabase schema/RLS, deploys — Phases 0–1 |
-| `open-banking-specialist` | Real bank data connectivity (TrueLayer/Plaid/Yapily) — Phase 2 |
-| `payments-engineer` | Real money movement, payment initiation, card issuing — Phases 2, 5 |
-| `household-product-specialist` | Wisdom Wallet, family/child features, household-scope judgment — Phase 3 |
-| `regulatory-compliance-strategist` | FCA pathways, "are we allowed to do this yet" — Phases 4–6, cross-cutting brake pedal |
-| `baas-partnerships-lead` | Banking-as-a-Service partnerships (Griffin et al.) — Phase 5 |
-| `investment-markets-specialist` | Invest tab, Kingdom Capital — Phase 6, deliberately last |
-| `security-trust-engineer` | Adversarial review of auth/RLS/secrets before anything real ships — cross-cutting, review-only |
-| `brand-growth-lead` | Visual polish, waitlist/landing page, positioning — Phase 4, after functionality not before |
-| `finance-fundraising-strategist` | Costing the roadmap, accelerators/grants, eventually fundraising — Phases 4–5 |
+| Priority | Agent | Owns |
+|---|---|---|
+| P1 | `platform-engineer` | Core app engineering, auth, Supabase schema/RLS, deploys — Phases 0–1, critical path |
+| P2 | `reliability-qa-engineer` | Regression testing, error-state coverage, headless verification — makes Phase 0 "stabilise" stick as scope grows |
+| P3 | `security-trust-engineer` | Adversarial review of auth/RLS/secrets — cross-cutting, review-only, continuous from Phase 0 |
+| P4 | `regulatory-compliance-strategist` | FCA pathways, "are we allowed to do this yet" — cross-cutting brake pedal, consult early |
+| P5 | `household-product-specialist` | Wisdom Wallet, family/child features, household-scope judgment — Phase 3, £0-cost, runs in parallel |
+| P6 | `open-banking-specialist` | Real bank data connectivity (TrueLayer/Plaid/Yapily) — Phase 2 |
+| P7 | `payments-engineer` | Real money movement, payment initiation, card issuing + BaaS technical integration — Phases 2, 5 |
+| P8 | `finance-fundraising-strategist` | Costing the roadmap, accelerators/grants, BaaS commercial-terms comparison, eventually fundraising — Phases 4–5 |
+| P9 | `brand-growth-lead` | Visual polish, waitlist/landing page, positioning — Phase 4, after functionality not before |
+| P10 | `investment-markets-specialist` | Invest tab, Kingdom Capital — Phase 6, deliberately last |
+
+Note: this roster folds the former standalone `baas-partnerships-lead` role into `payments-engineer` (technical integration) and `finance-fundraising-strategist` (commercial comparison), and adds `reliability-qa-engineer` as a new dedicated Phase-0 role.
 
 ## Working agreement
 
