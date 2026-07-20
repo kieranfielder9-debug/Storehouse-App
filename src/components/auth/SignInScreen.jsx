@@ -85,7 +85,7 @@ export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPasswo
 
       <div className="pb-10 px-7 text-center relative">
         <p className="text-[11px] text-white/40">
-          New to Storehouse? <button onClick={() => onCreateAccount(email, password)} disabled={busy} className="text-teal2 font-bold disabled:opacity-60">Create account</button>
+          New to Storehouse? <button onClick={() => onCreateAccount(email, password)} disabled={busy} className="text-teal2 font-bold disabled:opacity-60">{busy ? 'Creating account…' : 'Create account'}</button>
         </p>
         <p className="mt-3 text-[10px] text-white/30">
           🔒 We do not sell your data. Your financial stewardship is private.

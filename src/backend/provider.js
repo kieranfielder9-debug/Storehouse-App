@@ -101,21 +101,26 @@ function ensureRealtime() {
   refreshLive()
 }
 
-/** Detects Supabase/GoTrue's known "email send timeout" quirk on signup:
- *  custom SMTP (Resend) genuinely sends the confirmation email, but GoTrue's
- *  own request times out waiting on the SMTP round-trip and returns HTTP 500
- *  with body `{ code: "unexpected_failure", message: "Error sending
- *  confirmation email" }` anyway. The account and email may well be fine.
+/** Detects Supabase/GoTrue returning an opaque 5xx ("AuthRetryableFetchError")
+ *  on signup, with no usable error body — supabase-js treats *any* 5xx from
+ *  the API as a "retryable transport error" and never parses the JSON body
+ *  in that case (see lib/fetch.js NETWORK_ERROR_CODES / handleError), so the
+ *  thrown error's `.code` is `undefined` and `.message` is a useless
+ *  stringified Response. `.status` is the one field that reliably survives.
  *
- *  IMPORTANT: as installed (@supabase/auth-js, see lib/fetch.js
- *  NETWORK_ERROR_CODES / handleError), supabase-js treats *any* 5xx from the
- *  API as a "retryable transport error" and never parses the JSON body in
- *  that case — so the thrown error's `.code` is `undefined` and `.message`
- *  is a useless stringified Response, NOT the text above. `.status` is what
- *  actually survives. We check status as the primary signal and keep the
- *  documented code/message shape as a harmless fallback in case a future
- *  supabase-js version (or a non-5xx variant) parses the body differently. */
-function isSignupEmailTimeout(error) {
+ *  IMPORTANT — this used to be named isSignupEmailTimeout() and assumed the
+ *  500 always meant "a slow confirmation-email send, account is probably
+ *  fine, go check your inbox." That assumption is now known to be FALSE for
+ *  this project: on 2026-07-20, a batch of signups that all hit this exact
+ *  error path created NO row in auth.users at all (confirmed directly in the
+ *  Supabase dashboard) — most likely because a server-side trigger on
+ *  auth.users (handle_new_user(), see supabase/schema.sql) was throwing and
+ *  rolling back the entire signup transaction. A generic 5xx here can mean
+ *  either "harmless email delay" or "signup outright failed" and there is no
+ *  way to tell which from this response alone — so we must NOT reassure the
+ *  user their account likely exists. See supabase/schema.sql for the fix
+ *  applied to the trigger after this was found. */
+function isOpaqueServerError(error) {
   if (!error) return false
   if (typeof error.status === 'number' && error.status >= 500) return true
   if (error.code === 'unexpected_failure') return true
@@ -165,13 +170,13 @@ export const provider = {
       const sb = getSupabase()
       const res = await sb.auth.signUp({ email, password, options: { data: { name } } })
       if (res.error) {
-        // Known quirk (see isSignupEmailTimeout above): don't show a scary
-        // generic failure when the account/email likely went through fine.
-        // Never auto-retry here — retrying signUp with the same email risks
-        // colliding with the "already registered" path below, and we can't
-        // know whether the first attempt's email already sent.
-        if (isSignupEmailTimeout(res.error)) {
-          throw new Error('Your account may have been created — check your email (and spam) for a confirmation link before trying again.')
+        // See isOpaqueServerError above: a generic 5xx here does NOT
+        // reliably mean the account was created — be honest, not falsely
+        // reassuring. Never auto-retry here — retrying signUp with the same
+        // email risks colliding with the "already registered" path below,
+        // and we can't know whether a prior attempt already went through.
+        if (isOpaqueServerError(res.error)) {
+          throw new Error('Something went wrong creating your account and it was not created. Please wait a moment and try again — if it keeps happening, contact support.')
         }
         throw res.error
       }

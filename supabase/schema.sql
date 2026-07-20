@@ -99,6 +99,28 @@ create policy "own household rewards" on public.reward_requests for all
   with check (auth.uid() = (select auth_id from public.household_members where id = household_member_id));
 
 -- ---------------- Auto-provision on signup ----------------
+-- FIX (2026-07-20, after a live signup bug): every real signUp() call on
+-- storehouse-uk.com was returning a bare 500 (AuthRetryableFetchError) and,
+-- confirmed directly in the Supabase dashboard, NO row was ever created in
+-- auth.users at all. Because this trigger runs AFTER INSERT on auth.users
+-- and any exception inside it rolls back the *entire* signup transaction —
+-- including the auth.users insert itself — a throwing trigger here is
+-- indistinguishable, from GoTrue's client response, from an unrelated
+-- transport error. The two likely causes, neither provable without direct
+-- DB access (see supabase/diagnose-signup.sql for how to confirm which):
+--   1. RLS silently blocking the insert, if this function is ever owned by
+--      a role other than the owner of public.users/public.stewardship_goals
+--      (table owners bypass RLS; other roles do not, and auth.uid() is NULL
+--      inside a trigger, so the "own profile"/"own goals" policies can
+--      never pass for a non-owner).
+--   2. A GRANT/REVOKE applied by hand in the Supabase dashboard (never
+--      captured in this tracked schema.sql — there is no earlier commit
+--      with GRANT statements) narrowing what supabase_auth_admin, GoTrue's
+--      own Postgres role, is allowed to execute or reach.
+-- This block re-asserts a known-good state for both, and makes any future
+-- failure here show up as a clear, specific error in Supabase's Postgres
+-- logs instead of a bare, undiagnosable 500. It is idempotent: safe to
+-- re-run even though the live database predates this fix.
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -106,11 +128,28 @@ begin
   values (new.id, coalesce(new.raw_user_meta_data ->> 'name', 'Steward'), new.email);
   insert into public.stewardship_goals (user_id) values (new.id);
   return new;
+exception when others then
+  -- Re-raise with full detail so the real cause is visible in Supabase's
+  -- Postgres logs, rather than vanishing behind GoTrue's generic 500.
+  raise exception 'handle_new_user failed for auth.users id=%: % (sqlstate %)', new.id, sqlerrm, sqlstate;
 end $$;
 
+-- Guarantee the function is owned by the same role that owns the tables it
+-- writes to, so it runs with RLS bypassed regardless of who last touched it
+-- from the dashboard's SQL/function editor.
+alter function public.handle_new_user() owner to postgres;
+
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Re-assert the privileges GoTrue's own connection role needs to fire this
+-- trigger at all, in case a broader hardening pass (e.g. "revoke execute on
+-- all functions in schema public from public") was applied directly in the
+-- dashboard and narrowed them without this file's knowledge.
+grant usage on schema public to supabase_auth_admin;
+grant execute on function public.handle_new_user() to supabase_auth_admin;
 
 -- ---------------- Realtime (dashboard reactivity) ----------------
 alter publication supabase_realtime add table public.ledger;
