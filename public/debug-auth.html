@@ -13,7 +13,7 @@
 </style>
 </head>
 <body>
-<h1>Storehouse — raw Supabase connectivity test</h1>
+<h1>Storehouse — raw Supabase connectivity test (v3)</h1>
 <p>This bypasses the app entirely. Tap a button, read the box below.</p>
 
 <label>Test email</label>
@@ -34,12 +34,39 @@
   const out = document.getElementById('out')
   document.getElementById('email').value = 'debug-test-' + Date.now() + '@example.com'
 
-  function log(label, obj) {
-    const replacer = (key, value) => {
-      if (value instanceof Error) return { name: value.name, message: value.message, stack: value.stack, ...value }
-      return value
+  // Deliberately avoids JSON.stringify for res.data/res.error — reads each
+  // field directly by property access so nothing can be silently swallowed
+  // by serialization quirks (non-enumerable getters, prototype fields, etc).
+  function describeAuthResult(label, res) {
+    const lines = [label + ':', '']
+    lines.push('typeof res: ' + typeof res)
+    lines.push('Object.keys(res): ' + JSON.stringify(Object.keys(res || {})))
+    lines.push('')
+    const err = res && res.error
+    if (err) {
+      lines.push('ERROR PRESENT:')
+      lines.push('  name: ' + err.name)
+      lines.push('  message: ' + err.message)
+      lines.push('  status: ' + err.status)
+      lines.push('  code: ' + err.code)
+      lines.push('  String(error): ' + String(err))
+    } else {
+      lines.push('error: none')
     }
-    out.textContent = label + ':\n' + JSON.stringify(obj, replacer, 2)
+    lines.push('')
+    const data = res && res.data
+    if (data) {
+      lines.push('DATA PRESENT:')
+      lines.push('  Object.keys(data): ' + JSON.stringify(Object.keys(data || {})))
+      lines.push('  user id: ' + (data.user && data.user.id))
+      lines.push('  user email: ' + (data.user && data.user.email))
+      lines.push('  user email_confirmed_at: ' + (data.user && data.user.email_confirmed_at))
+      lines.push('  identities length: ' + (data.user && data.user.identities && data.user.identities.length))
+      lines.push('  session present: ' + !!data.session)
+    } else {
+      lines.push('data: none')
+    }
+    out.textContent = lines.join('\n')
   }
 
   let client
@@ -55,7 +82,7 @@
     try {
       const res = await fetch(SUPABASE_URL + '/rest/v1/', { headers: { apikey: SUPABASE_KEY } })
       const text = await res.text()
-      log('RAW FETCH RESULT', { status: res.status, ok: res.ok, body: text.slice(0, 500) })
+      out.textContent = 'RAW FETCH RESULT:\nstatus: ' + res.status + '\nok: ' + res.ok + '\nbody: ' + text.slice(0, 500)
     } catch (e) {
       out.textContent = 'RAW FETCH THREW: ' + (e && e.message) + '\n' + (e && e.stack)
     }
@@ -67,7 +94,7 @@
     const password = document.getElementById('password').value
     try {
       const res = await client.auth.signUp({ email, password })
-      log('SIGNUP RESULT', res)
+      describeAuthResult('SIGNUP RESULT', res)
     } catch (e) {
       out.textContent = 'SIGNUP THREW (uncaught): ' + (e && e.message) + '\n' + (e && e.stack)
     }
@@ -79,7 +106,7 @@
     const password = document.getElementById('password').value
     try {
       const res = await client.auth.signInWithPassword({ email, password })
-      log('SIGNIN RESULT', res)
+      describeAuthResult('SIGNIN RESULT', res)
     } catch (e) {
       out.textContent = 'SIGNIN THREW (uncaught): ' + (e && e.message) + '\n' + (e && e.stack)
     }
