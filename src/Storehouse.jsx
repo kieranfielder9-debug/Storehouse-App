@@ -91,6 +91,19 @@ export default function Storehouse() {
     setTimeout(() => setToast(null), 3600)
   }
 
+  // Surfaces otherwise-invisible crashes (e.g. on a phone with no dev tools
+  // attached) as a toast instead of a silent dead button.
+  useEffect(() => {
+    const onError = (e) => flashToast(e?.error?.message || e?.message || 'Something went wrong — please try again.')
+    const onRejection = (e) => flashToast(e?.reason?.message || 'Something went wrong — please try again.')
+    window.addEventListener('error', onError)
+    window.addEventListener('unhandledrejection', onRejection)
+    return () => {
+      window.removeEventListener('error', onError)
+      window.removeEventListener('unhandledrejection', onRejection)
+    }
+  }, [])
+
   // sign in / up / reset — provider handles sandbox (instant) vs Supabase (real auth).
   // Each action is explicit: Sign In never silently creates an account, and
   // every failure surfaces a real, visible message (see Toast render below —
