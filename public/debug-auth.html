@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Storehouse — Auth debug</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #0B0F19; color: #fff; padding: 16px; font-size: 14px; }
+  h1 { font-size: 16px; }
+  button { display: block; width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; background: #14B8A6; color: #fff; font-weight: bold; font-size: 14px; }
+  pre { white-space: pre-wrap; word-break: break-word; background: #111C30; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); }
+  input { width: 100%; padding: 10px; margin: 4px 0; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: #111C30; color: #fff; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<h1>Storehouse — raw Supabase connectivity test</h1>
+<p>This bypasses the app entirely. Tap a button, read the box below.</p>
+
+<label>Test email</label>
+<input id="email" value="" />
+<label>Test password</label>
+<input id="password" value="TestPassword123!" />
+
+<button onclick="testHealth()">1. Test basic connectivity</button>
+<button onclick="testSignUp()">2. Test Sign Up</button>
+<button onclick="testSignIn()">3. Test Sign In (after sign up)</button>
+
+<pre id="out">Results will appear here…</pre>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  const SUPABASE_URL = 'https://rruriickuvrxvnabzwnm.supabase.co'
+  const SUPABASE_KEY = 'sb_publishable_u8dFYrk7PDDtymx4YfGl2g_jxhM2N7r'
+  const out = document.getElementById('out')
+  document.getElementById('email').value = 'debug-test-' + Date.now() + '@example.com'
+
+  function log(label, obj) {
+    out.textContent = label + ':\n' + JSON.stringify(obj, Object.getOwnPropertyNames(obj || {}), 2)
+  }
+
+  let client
+  try {
+    client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+    out.textContent = 'Client created OK. Tap a test button above.'
+  } catch (e) {
+    out.textContent = 'CLIENT CREATION FAILED: ' + (e && e.message) + '\n' + (e && e.stack)
+  }
+
+  async function testHealth() {
+    out.textContent = 'Testing raw fetch to REST endpoint…'
+    try {
+      const res = await fetch(SUPABASE_URL + '/rest/v1/', { headers: { apikey: SUPABASE_KEY } })
+      const text = await res.text()
+      log('RAW FETCH RESULT', { status: res.status, ok: res.ok, body: text.slice(0, 500) })
+    } catch (e) {
+      out.textContent = 'RAW FETCH THREW: ' + (e && e.message) + '\n' + (e && e.stack)
+    }
+  }
+
+  async function testSignUp() {
+    out.textContent = 'Signing up…'
+    const email = document.getElementById('email').value
+    const password = document.getElementById('password').value
+    try {
+      const res = await client.auth.signUp({ email, password })
+      log('SIGNUP RESULT', res)
+    } catch (e) {
+      out.textContent = 'SIGNUP THREW (uncaught): ' + (e && e.message) + '\n' + (e && e.stack)
+    }
+  }
+
+  async function testSignIn() {
+    out.textContent = 'Signing in…'
+    const email = document.getElementById('email').value
+    const password = document.getElementById('password').value
+    try {
+      const res = await client.auth.signInWithPassword({ email, password })
+      log('SIGNIN RESULT', res)
+    } catch (e) {
+      out.textContent = 'SIGNIN THREW (uncaught): ' + (e && e.message) + '\n' + (e && e.stack)
+    }
+  }
+</script>
+</body>
+</html>
