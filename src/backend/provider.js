@@ -337,7 +337,10 @@ export const provider = {
     return read(K.plaid, { connected: false, institution: null })
   },
   async connectPlaid() {
-    if (isLive()) return connectPlaidLive()
+    // Deliberately separate from isLive(): Supabase going live (Phase 1) must
+    // not silently start routing to real Plaid functions (Phase 2) before
+    // Plaid credentials actually exist in this environment. Opt-in only.
+    if (isLive() && import.meta.env.VITE_PLAID_LIVE === 'true') return connectPlaidLive()
     // Sandbox: simulate the Link flow. No credentials ever touch our code.
     await new Promise((r) => setTimeout(r, 1500))
     write(K.plaid, { connected: true, institution: 'Storehouse Sandbox Bank' })
