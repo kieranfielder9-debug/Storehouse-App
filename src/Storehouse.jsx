@@ -27,6 +27,7 @@ import NotificationsDrawer from './components/notifications/NotificationsDrawer.
 
 import WeeklyWrapModal from './modals/WeeklyWrapModal.jsx'
 import TransactionModal from './modals/TransactionModal.jsx'
+import AddTransactionModal from './modals/AddTransactionModal.jsx'
 import PieDetailModal from './modals/PieDetailModal.jsx'
 import InvestAmountModal from './modals/InvestAmountModal.jsx'
 import BalanceDetailModal from './modals/BalanceDetailModal.jsx'
@@ -65,6 +66,7 @@ export default function Storehouse() {
 
   const [wrapOpen, setWrapOpen] = useState(false)
   const [txOpen, setTxOpen] = useState(false)
+  const [addTxOpen, setAddTxOpen] = useState(false)
   const [pieDetail, setPieDetail] = useState(null)
   const [investAmountOpen, setInvestAmountOpen] = useState(null)
   const [balanceDetail, setBalanceDetail] = useState(null)
@@ -162,6 +164,7 @@ export default function Storehouse() {
             <DashboardTab
               onOpenWrap={() => setWrapOpen(true)}
               onOpenTx={() => setTxOpen(true)}
+              onOpenAddTx={() => setAddTxOpen(true)}
               onOpenBalance={(kind) => setBalanceDetail(kind)}
               onOpenBudget={() => setBudgetOpen(true)}
               onPay={() => setPayOpen(true)}
@@ -219,6 +222,7 @@ export default function Storehouse() {
         {/* Dashboard modals */}
         {wrapOpen      && <WeeklyWrapModal     onClose={() => setWrapOpen(false)} />}
         {txOpen        && <TransactionModal    onClose={() => setTxOpen(false)} flashToast={flashToast} />}
+        {addTxOpen     && <AddTransactionModal onClose={() => setAddTxOpen(false)} flashToast={flashToast} />}
         {balanceDetail && <BalanceDetailModal  kind={balanceDetail} onClose={() => setBalanceDetail(null)} flashToast={flashToast} />}
         {budgetOpen    && <BudgetDetailModal   onClose={() => setBudgetOpen(false)} flashToast={flashToast} />}
         {payOpen       && <PayTransferModal    onClose={() => setPayOpen(false)} flashToast={flashToast} />}

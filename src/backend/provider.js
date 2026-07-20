@@ -66,6 +66,27 @@ function ensureRealtime() {
   refreshLive()
 }
 
+/** Detects Supabase/GoTrue's known "email send timeout" quirk on signup:
+ *  custom SMTP (Resend) genuinely sends the confirmation email, but GoTrue's
+ *  own request times out waiting on the SMTP round-trip and returns HTTP 500
+ *  with body `{ code: "unexpected_failure", message: "Error sending
+ *  confirmation email" }` anyway. The account and email may well be fine.
+ *
+ *  IMPORTANT: as installed (@supabase/auth-js, see lib/fetch.js
+ *  NETWORK_ERROR_CODES / handleError), supabase-js treats *any* 5xx from the
+ *  API as a "retryable transport error" and never parses the JSON body in
+ *  that case — so the thrown error's `.code` is `undefined` and `.message`
+ *  is a useless stringified Response, NOT the text above. `.status` is what
+ *  actually survives. We check status as the primary signal and keep the
+ *  documented code/message shape as a harmless fallback in case a future
+ *  supabase-js version (or a non-5xx variant) parses the body differently. */
+function isSignupEmailTimeout(error) {
+  if (!error) return false
+  if (typeof error.status === 'number' && error.status >= 500) return true
+  if (error.code === 'unexpected_failure') return true
+  return /sending confirmation email/i.test(error.message || '')
+}
+
 // ------------------------------------------------------------------ facade
 export const provider = {
   mode: () => (isLive() ? 'live' : 'sandbox'),
@@ -108,7 +129,17 @@ export const provider = {
     if (isLive()) {
       const sb = getSupabase()
       const res = await sb.auth.signUp({ email, password, options: { data: { name } } })
-      if (res.error) throw res.error
+      if (res.error) {
+        // Known quirk (see isSignupEmailTimeout above): don't show a scary
+        // generic failure when the account/email likely went through fine.
+        // Never auto-retry here — retrying signUp with the same email risks
+        // colliding with the "already registered" path below, and we can't
+        // know whether the first attempt's email already sent.
+        if (isSignupEmailTimeout(res.error)) {
+          throw new Error('Your account may have been created — check your email (and spam) for a confirmation link before trying again.')
+        }
+        throw res.error
+      }
       const alreadyRegistered = res.data?.user?.identities?.length === 0
       if (alreadyRegistered) throw new Error('An account with this email already exists — try signing in instead.')
       if (!res.data.session) return { needsEmailConfirmation: true }
@@ -156,6 +187,20 @@ export const provider = {
       return
     }
     write(K.ledger, this.getLedger().map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  },
+  /** "Start Fresh": delete every ledger row so a hand-entered real ledger can
+   *  start from zero. Scoped to the ledger only (goals/reflections/Plaid
+   *  status are untouched) — this is a data reset, not an account reset.
+   *  Live mode deletes only the signed-in user's own rows; RLS ("own ledger"
+   *  policy, auth.uid() = user_id) enforces that server-side regardless, the
+   *  explicit .eq() here is belt-and-braces, not a bypass of it. */
+  async clearLedger() {
+    if (isLive()) {
+      const { error } = await getSupabase().from('ledger').delete().eq('user_id', cache.user.id)
+      if (error) throw error
+      return // realtime event refreshes cache
+    }
+    write(K.ledger, [])
   },
 
   // ---- goals ----

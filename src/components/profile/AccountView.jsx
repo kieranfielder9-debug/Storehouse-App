@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { User, Cake, Mail, Phone, Fingerprint, Building2, Check, Plus, Landmark, ShieldCheck } from 'lucide-react'
+import { User, Cake, Mail, Phone, Fingerprint, Building2, Check, Plus, Landmark, ShieldCheck, Eraser, AlertTriangle } from 'lucide-react'
 import ProfileScreen from './ProfileScreen.jsx'
 import ToggleRow from '../ui/ToggleRow.jsx'
 import Label from '../ui/Label.jsx'
@@ -14,11 +14,26 @@ const BANKS = [
 export default function AccountView({ onBack, flashToast }) {
   const [faceId, setFaceId] = useState(true)
   const [banks, setBanks] = useState(BANKS)
-  const { plaid, provider } = useStewardship()
+  const [confirmingClear, setConfirmingClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const { plaid, provider, ledger } = useStewardship()
 
   const toggleBank = (i) => {
     setBanks(b => b.map((x, idx) => idx === i ? { ...x, connected: !x.connected } : x))
     flashToast(banks[i].connected ? `${banks[i].name} disconnected` : `${banks[i].name} connected`)
+  }
+
+  const handleStartFresh = async () => {
+    setClearing(true)
+    try {
+      await provider.clearLedger()
+      flashToast('Demo transactions cleared — your real ledger starts now.')
+      setConfirmingClear(false)
+    } catch (e) {
+      flashToast(e?.message || 'Could not clear ledger')
+    } finally {
+      setClearing(false)
+    }
   }
 
   return (
@@ -85,6 +100,53 @@ export default function AccountView({ onBack, flashToast }) {
             else { await provider.connectPlaid(); flashToast('Stewardship source connected') }
           }}
         />
+      </div>
+
+      <div className="mt-6 flex items-center justify-between mb-2">
+        <Label>Your Data</Label>
+      </div>
+      <div className="rounded-2xl bg-trustnavy border border-white/10 overflow-hidden">
+        {!confirmingClear ? (
+          <button
+            onClick={() => setConfirmingClear(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.03] transition"
+          >
+            <div className="h-8 w-8 rounded-lg bg-rose-500/15 flex items-center justify-center flex-shrink-0">
+              <Eraser className="h-4 w-4 text-rose-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm text-rose-400 font-bold leading-tight">Start Fresh</p>
+              <p className="text-[10px] text-white/40 mt-0.5">
+                Clear the {ledger.length} seeded demo transaction{ledger.length === 1 ? '' : 's'} and begin your real ledger
+              </p>
+            </div>
+          </button>
+        ) : (
+          <div className="px-4 py-3.5">
+            <div className="flex items-start gap-2 mb-3">
+              <AlertTriangle className="h-4 w-4 text-rose-400 mt-0.5 flex-shrink-0" />
+              <p className="text-[12px] text-white/80 leading-snug">
+                This permanently deletes all {ledger.length} transaction{ledger.length === 1 ? '' : 's'} currently in your ledger — demo or real. This can't be undone.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmingClear(false)}
+                disabled={clearing}
+                className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white/70 text-[12px] font-bold disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleStartFresh}
+                disabled={clearing}
+                className="flex-1 py-2.5 rounded-xl bg-rose-500/90 text-white text-[12px] font-bold disabled:opacity-60"
+              >
+                {clearing ? 'Clearing…' : 'Yes, clear it'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 flex items-start gap-2 text-[10px] text-white/40 leading-snug px-1">

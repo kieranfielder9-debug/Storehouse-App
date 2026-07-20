@@ -9,7 +9,7 @@ import ChildOverview from './ChildOverview.jsx'
 import AnalyticsSection from './AnalyticsSection.jsx'
 
 export default function DashboardTab({
-  onOpenWrap, onOpenTx, onOpenBalance, onOpenBudget,
+  onOpenWrap, onOpenTx, onOpenAddTx, onOpenBalance, onOpenBudget,
   onPay, onGive, onQR, onTopUp, onOpenChild, flashToast
 }) {
   const { stats } = useStewardship()
@@ -27,7 +27,7 @@ export default function DashboardTab({
       <BudgetCard onOpen={onOpenBudget} givingPct={stats.givingPct} />
       <ChildOverview onOpen={onOpenChild} />
       <AnalyticsSection flashToast={flashToast} />
-      <TransactionFeed onOpenTx={onOpenTx} />
+      <TransactionFeed onOpenTx={onOpenTx} onAdd={onOpenAddTx} />
     </div>
   )
 }

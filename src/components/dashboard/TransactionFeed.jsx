@@ -1,4 +1,4 @@
-import { Coffee, HandCoins, ShoppingBag, ArrowUpRight, Home, Bus, Sparkles, FlaskConical } from 'lucide-react'
+import { Coffee, HandCoins, ShoppingBag, ArrowUpRight, Home, Bus, Sparkles, FlaskConical, Plus } from 'lucide-react'
 import { useStewardship } from '../../backend/useStewardship.js'
 
 const CATEGORY_STYLE = {
@@ -8,6 +8,7 @@ const CATEGORY_STYLE = {
   Income:    { icon: ArrowUpRight, color: 'bg-emerald-500/15 text-emerald-400' },
   Bills:     { icon: Home,         color: 'bg-fuchsia-500/15 text-fuchsia-400' },
   Transport: { icon: Bus,          color: 'bg-blue-500/15 text-blue-400' },
+  Other:     { icon: Sparkles,     color: 'bg-white/10 text-white/70' },
   Sandbox:   { icon: FlaskConical, color: 'bg-cyan-500/15 text-cyan-300' }
 }
 const fallback = { icon: Sparkles, color: 'bg-white/10 text-white/70' }
@@ -18,16 +19,27 @@ const friendly = (d) => {
   return d === today ? 'Today' : d === yest ? 'Yesterday' : d
 }
 
-export default function TransactionFeed({ onOpenTx }) {
+export default function TransactionFeed({ onOpenTx, onAdd }) {
   const { ledger } = useStewardship()
 
   return (
     <div>
       <div className="flex items-center justify-between mb-2 px-1">
         <h3 className="text-sm font-bold text-white">Recent Activity</h3>
-        <button className="text-[10px] text-teal2 font-semibold">See all</button>
+        <div className="flex items-center gap-3">
+          <button onClick={onAdd} className="flex items-center gap-0.5 text-[10px] text-teal2 font-semibold">
+            <Plus className="h-3 w-3" /> Add
+          </button>
+          <button className="text-[10px] text-teal2 font-semibold">See all</button>
+        </div>
       </div>
       <div className="rounded-2xl bg-trustnavy border border-white/10 divide-y divide-white/5 overflow-hidden">
+        {ledger.length === 0 && (
+          <div className="px-4 py-8 text-center">
+            <p className="text-sm text-white/50 font-medium">No transactions yet</p>
+            <p className="text-[11px] text-white/30 mt-1">Tap "Add" above to record your first real transaction.</p>
+          </div>
+        )}
         {ledger.slice(0, 4).map((t) => {
           const s = CATEGORY_STYLE[t.category] || fallback
           const Icon = s.icon
