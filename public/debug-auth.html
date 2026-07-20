@@ -35,7 +35,11 @@
   document.getElementById('email').value = 'debug-test-' + Date.now() + '@example.com'
 
   function log(label, obj) {
-    out.textContent = label + ':\n' + JSON.stringify(obj, Object.getOwnPropertyNames(obj || {}), 2)
+    const replacer = (key, value) => {
+      if (value instanceof Error) return { name: value.name, message: value.message, stack: value.stack, ...value }
+      return value
+    }
+    out.textContent = label + ':\n' + JSON.stringify(obj, replacer, 2)
   }
 
   let client
