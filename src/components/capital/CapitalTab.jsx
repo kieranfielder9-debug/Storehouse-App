@@ -16,7 +16,7 @@ const ITEMS = [
   {
     id: 'school', name: 'Trinity Christian Academy', tag: 'Education', category: 'Education',
     icon: BookOpen, pct: 91, goal: 180000, raised: 163800, backers: 521,
-    blurb: 'New STEM block and bursaries for low-income families in Wakefield. £16k from goal.'
+    blurb: 'New STEM block and bursaries for low-income families in Wakefield. £16.2k from goal.'
   },
   {
     id: 'shelter', name: 'Hope House Sheffield', tag: 'Housing', category: 'Community',
@@ -35,6 +35,7 @@ const FILTERS = ['All', 'Community', 'Climate', 'Education']
 export default function CapitalTab({ onInvest, flashToast }) {
   const [filter, setFilter] = useState('All')
   const filtered = filter === 'All' ? ITEMS : ITEMS.filter(i => i.category === filter)
+  const featured = ITEMS.find(i => i.id === 'bradford')
 
   return (
     <div className="space-y-5 pt-2">
@@ -49,15 +50,18 @@ export default function CapitalTab({ onInvest, flashToast }) {
         </div>
       </div>
 
-      <div className="rounded-2xl p-4 bg-gradient-to-br from-amber-500/20 via-trustnavy to-trustnavy border border-gold/30 shadow-card">
+      <button
+        onClick={() => onInvest(featured)}
+        className="w-full text-left rounded-2xl p-4 bg-gradient-to-br from-amber-500/20 via-trustnavy to-trustnavy border border-gold/30 shadow-card"
+      >
         <div className="flex items-center gap-2">
           <Star className="h-3.5 w-3.5 text-gold" />
           <span className="text-[10px] uppercase tracking-widest font-bold text-gold">Featured Cause</span>
         </div>
         <p className="text-sm text-white mt-1.5 font-semibold leading-snug">
-          Backed by 700+ Storehouse stewards this week.
+          {featured.name} is {featured.pct}% funded, backed by {featured.backers} Storehouse stewards.
         </p>
-      </div>
+      </button>
 
       {/* Search + filter */}
       <div>

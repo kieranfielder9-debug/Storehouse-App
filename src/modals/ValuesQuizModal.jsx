@@ -49,6 +49,17 @@ const QUESTIONS = [
   }
 ]
 
+function labelFor(key, value) {
+  const question = QUESTIONS.find(item => item.key === key)
+  if (!question || value === undefined) return ''
+  if (Array.isArray(value)) {
+    return value
+      .map(v => question.options.find(o => o.v === v)?.l || v)
+      .join(', ')
+  }
+  return question.options.find(o => o.v === value)?.l || value
+}
+
 export default function ValuesQuizModal({ onClose, flashToast }) {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState({})
@@ -166,10 +177,13 @@ export default function ValuesQuizModal({ onClose, flashToast }) {
             </div>
 
             <div className="mt-5 space-y-2">
-              <ResultRow label="Risk appetite"   value={answers.risk} />
-              <ResultRow label="Horizon"         value={answers.horizon} />
-              <ResultRow label="Mission tilt"    value={answers.mission} />
-              <ResultRow label="Screens active"  value={`${(answers.values || []).length} filters`} />
+              <ResultRow label="Risk appetite"   value={labelFor('risk', answers.risk)} />
+              <ResultRow label="Horizon"         value={labelFor('horizon', answers.horizon)} />
+              <ResultRow label="Mission tilt"    value={labelFor('mission', answers.mission)} />
+              <ResultRow
+                label="Screens active"
+                value={(answers.values || []).length ? labelFor('values', answers.values) : 'None selected'}
+              />
             </div>
 
             <button
@@ -187,9 +201,9 @@ export default function ValuesQuizModal({ onClose, flashToast }) {
 
 function ResultRow({ label, value }) {
   return (
-    <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-navydeep border border-white/10">
-      <span className="text-[11px] uppercase tracking-widest text-white/40 font-bold">{label}</span>
-      <span className="text-sm text-white font-bold capitalize">{String(value)}</span>
+    <div className="flex items-start justify-between gap-3 px-4 py-3 rounded-xl bg-navydeep border border-white/10">
+      <span className="text-[11px] uppercase tracking-widest text-white/40 font-bold shrink-0 pt-0.5">{label}</span>
+      <span className="text-sm text-white font-bold text-right">{String(value)}</span>
     </div>
   )
 }

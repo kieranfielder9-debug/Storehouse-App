@@ -26,8 +26,8 @@ export default function PieDetailModal({ pie, onClose }) {
 
         <div className="mt-4 grid grid-cols-3 gap-2">
           <Stat label="Allocation" value={`${pie.pct}%`} />
-          <Stat label="1Y Return" value="+14.2%" pos />
-          <Stat label="Holdings" value="22" />
+          <Stat label="1Y Return" value={pie.oneYearReturn || '+14.2%'} pos />
+          <Stat label="Holdings" value={pie.holdings ?? 22} />
         </div>
 
         <button

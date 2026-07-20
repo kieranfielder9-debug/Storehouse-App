@@ -5,9 +5,9 @@ import Watchlist from './Watchlist.jsx'
 import AISuggestions from './AISuggestions.jsx'
 
 const PIES = [
-  { key: 'tech',    name: 'Kingdom Tech Expansion',   pct: 40, color: '#14B8A6', desc: 'Faith-led innovation, gospel-aligned SaaS, ethical AI' },
-  { key: 'housing', name: 'Clean Green Housing',      pct: 30, color: '#F4C56A', desc: 'Affordable, eco-built residential developments' },
-  { key: 'global',  name: 'Ethical Global Blue-Chips', pct: 30, color: '#7CC8FF', desc: 'Screened global leaders. No alcohol/arms/gambling' }
+  { key: 'tech',    name: 'Kingdom Tech Expansion',   pct: 40, color: '#14B8A6', desc: 'Faith-led innovation, gospel-aligned SaaS, ethical AI', oneYearReturn: '+19.8%', holdings: 27 },
+  { key: 'housing', name: 'Clean Green Housing',      pct: 30, color: '#F4C56A', desc: 'Affordable, eco-built residential developments', oneYearReturn: '+9.1%', holdings: 14 },
+  { key: 'global',  name: 'Ethical Global Blue-Chips', pct: 30, color: '#7CC8FF', desc: 'Screened global leaders. No alcohol/arms/gambling', oneYearReturn: '+11.4%', holdings: 38 }
 ]
 
 export default function InvestTab({ onOpenPie, onOpenStock, onOpenValues, flashToast }) {
