@@ -6,6 +6,14 @@ import { useStewardship } from '../../backend/useStewardship.js'
 const REWARD_MEMBER = 'Ethan'
 const REWARD_REASON = 'Curriculum modules completed'
 
+const formatApprovedAt = (iso) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const sameDay = d.toDateString() === new Date().toDateString()
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return sameDay ? `Today, ${time}` : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${time}`
+}
+
 export default function ControlCenter({ freeze, setFreeze, flashToast }) {
   const [limit, setLimit] = useState(20)
   const [approving, setApproving] = useState(false)
@@ -109,8 +117,15 @@ export default function ControlCenter({ freeze, setFreeze, flashToast }) {
                 key={r.id}
                 className="flex items-center justify-between text-[11px] bg-white/[0.03] rounded-lg px-2.5 py-2"
               >
-                <span className="text-white/60">{r.reason || 'Reward'}</span>
-                <span className="text-emerald-400 font-semibold">£{Number(r.amount).toFixed(2)} approved</span>
+                <div className="min-w-0">
+                  <span className="text-white/60">{r.reason || 'Reward'}</span>
+                  {r.approved_at && (
+                    <span className="block text-[9px] text-white/30 mt-0.5">
+                      Approved by you · {formatApprovedAt(r.approved_at)}
+                    </span>
+                  )}
+                </div>
+                <span className="text-emerald-400 font-semibold shrink-0 ml-2">£{Number(r.amount).toFixed(2)} approved</span>
               </div>
             ))}
           </div>

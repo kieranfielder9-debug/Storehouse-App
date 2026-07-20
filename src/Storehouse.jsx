@@ -87,8 +87,11 @@ export default function Storehouse() {
   const [authBusy, setAuthBusy] = useState(false)
 
   const flashToast = (msg) => {
-    setToast({ msg, id: Date.now() })
-    setTimeout(() => setToast(null), 3600)
+    const id = Date.now()
+    setToast({ msg, id })
+    // Only clear if this is still the toast showing — an older toast's
+    // stale timer must not wipe out a newer one that replaced it early.
+    setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 3600)
   }
 
   // Surfaces otherwise-invisible crashes (e.g. on a phone with no dev tools

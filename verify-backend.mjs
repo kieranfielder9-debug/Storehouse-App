@@ -9,6 +9,32 @@ const click = (needle) => page.evaluate((n) => {
   const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes(n)); b?.click(); return !!b
 }, needle)
 const bodyHas = (t) => page.evaluate((x) => document.body.innerText.includes(x), t)
+// Toast assertions were racing a fixed sleep against the toast's paint time
+// (flaky under the cumulative render weight of a long sequential run) —
+// poll instead of sleeping once.
+const waitBodyHas = async (t, timeout = 2000) => {
+  try { await page.waitForFunction((x) => document.body.innerText.includes(x), t, { timeout }); return true }
+  catch { return false }
+}
+
+// --- Failure simulation for error-state coverage -----------------------
+// Sandbox mode persists via localStorage, so a failed backend/network call
+// (Supabase insert/update in live mode) is mirrored here by making the
+// matching localStorage write throw instead of succeeding — same effect
+// (the provider call rejects) without touching provider.js production code.
+// Scoped to a single key so unrelated writes during the same interaction
+// (e.g. other listeners) are unaffected.
+const breakStorage = (method, key) => page.evaluate(({ method, key }) => {
+  window.__shOrig = window.__shOrig || {}
+  if (!window.__shOrig[method]) window.__shOrig[method] = Storage.prototype[method]
+  Storage.prototype[method] = function (k, ...rest) {
+    if (k === key) throw new Error('Simulated storage failure')
+    return window.__shOrig[method].call(this, k, ...rest)
+  }
+}, { method, key })
+const restoreStorage = (method) => page.evaluate((method) => {
+  if (window.__shOrig?.[method]) Storage.prototype[method] = window.__shOrig[method]
+}, method)
 
 await page.goto('http://localhost:5173/?sandbox=1', { waitUntil: 'networkidle' })
 
@@ -192,6 +218,142 @@ check('New reward record is approved, £5, tied to the household member', await 
 }))
 check('Approved reward now visible in Reward History (persists, not just a 2s toast)', await bodyHas('£5.00 approved'))
 check('No page reload occurred during reward approval', await page.evaluate(() => window.__noReloadMarker === 'set-before-add-tx'))
+
+// 11. Error-state regression: failed provider.updateLedger() in
+//     TransactionModal ("Save Changes" wasn't awaited and always showed
+//     success — fixed to await + try/catch). A failed save must show an
+//     error toast, must NOT show the false "saved" success toast, and must
+//     NOT close the modal. A retry once the failure clears must work (not
+//     stuck).
+await click('Home')
+await page.waitForTimeout(300)
+
+// Ledger is empty after "Start Fresh" above — add one row back so there's a
+// transaction to open. TransactionModal always edits the fixed seed row id
+// 1 regardless of which row is clicked, and clearLedger + addLedger means
+// this new row is assigned id 1 again, so this lines up correctly.
+await page.evaluate(() => [...document.querySelectorAll('button[title="Sandbox"]')][0]?.click())
+await page.waitForSelector('text=Sandbox', { timeout: 3000 })
+await click('Add £100 income')
+await page.waitForTimeout(300)
+await page.evaluate(() => document.querySelector('.absolute.inset-0.bg-black\\/70')?.click())
+await page.waitForTimeout(300)
+
+const ledgerBeforeFailedSave = await page.evaluate(() => localStorage.getItem('sh_ledger'))
+await click('Sandbox income') // opens TransactionModal
+await page.waitForSelector('text=Contentment check', { timeout: 3000 })
+
+await breakStorage('setItem', 'sh_ledger')
+await click('Save Changes')
+await page.waitForTimeout(400)
+
+check('Failed transaction save shows an error toast', await waitBodyHas('Simulated storage failure'))
+check('Failed transaction save does NOT show the false "saved" success toast', !(await bodyHas('Transaction settings saved')))
+check('Failed transaction save does NOT close the modal', await bodyHas('Contentment check'))
+const ledgerAfterFailedSave = await page.evaluate(() => localStorage.getItem('sh_ledger'))
+check('Failed transaction save leaves the ledger unmodified', ledgerAfterFailedSave === ledgerBeforeFailedSave)
+await restoreStorage('setItem')
+
+await click('Save Changes') // retry once storage works again
+await page.waitForTimeout(300)
+check('Retry after a cleared failure succeeds (modal closes, not stuck)', !(await bodyHas('Contentment check')))
+check('Retry after a cleared failure actually persisted the save', await bodyHas('Transaction settings saved'))
+
+// 12. Error-state regression: failed provider.addReflection() in
+//     ReflectionModal (no error handling before — silently ate the
+//     rejection). A failed save must show an error toast, must not wipe the
+//     user's typed content, and must leave the Save button re-enabled
+//     rather than stuck on "Saving…".
+await page.evaluate(() => [...document.querySelectorAll('button[title="Sandbox"]')][0]?.click())
+await page.waitForSelector('text=Sandbox', { timeout: 3000 })
+await click('Trigger Sunday reflection')
+await page.waitForSelector('text=Weekly Stewardship Reflection', { timeout: 3000 })
+
+const reflBefore = await page.evaluate(() => localStorage.getItem('sh_refl'))
+const reflectionText = 'Grateful for provision even when the system fails.'
+await page.locator('textarea').last().fill(reflectionText)
+
+await breakStorage('setItem', 'sh_refl')
+await click('Save reflection')
+await page.waitForTimeout(400)
+
+check('Failed reflection save shows an error toast', await waitBodyHas('Simulated storage failure'))
+check('Failed reflection save does NOT show the false "saved" success toast', !(await bodyHas('Reflection saved')))
+const reflAfterFailed = await page.evaluate(() => localStorage.getItem('sh_refl'))
+check('Failed reflection save leaves stored reflections unmodified', reflAfterFailed === reflBefore)
+check('Failed reflection save is not stuck on "Saving…" (button text reset)', await bodyHas('Save reflection'))
+const textareaValueAfterFailure = await page.locator('textarea').last().inputValue()
+check('Failed reflection save keeps the typed content (not silently wiped)', textareaValueAfterFailure === reflectionText)
+await restoreStorage('setItem')
+
+await click('Save reflection') // retry once storage works again
+await page.waitForTimeout(300)
+check('Reflection retry after a cleared failure closes the modal (not stuck)', !(await bodyHas('Weekly Stewardship Reflection')))
+const reflAfterRetry = await page.evaluate(() => JSON.parse(localStorage.getItem('sh_refl') || '[]').length)
+const reflBeforeCount = JSON.parse(reflBefore || '[]').length
+check('Reflection retry after a cleared failure actually persisted', reflAfterRetry === reflBeforeCount + 1)
+
+// 13. Error-state regression: a failed Plaid connect/disconnect in
+//     AccountView (no error handling before — toggle silently no-opped) must
+//     show an error toast rather than failing silently, on BOTH branches of
+//     the toggle (connect and disconnect), and must not flip the UI into a
+//     false state while the underlying write failed.
+await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'MG')?.click())
+await page.waitForSelector('text=Refer a Friend', { timeout: 3000 })
+await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.includes('Personal details & banks'))?.click())
+await page.waitForSelector('text=Personal Details', { timeout: 3000 })
+
+check('Plaid already connected from earlier sandbox test (setup for this block)', await bodyHas('Storehouse Sandbox Bank'))
+const plaidBeforeFailedDisconnect = await page.evaluate(() => localStorage.getItem('sh_plaid'))
+
+await breakStorage('setItem', 'sh_plaid')
+await click('Stewardship Source') // AccountView's Plaid ToggleRow — currently connected, so this attempts disconnect
+await page.waitForTimeout(300)
+
+check('Failed Plaid disconnect shows an error toast', await waitBodyHas('Simulated storage failure'))
+check('Failed Plaid disconnect does NOT show the false "disconnected" success toast', !(await bodyHas('Stewardship source disconnected')))
+const plaidAfterFailedDisconnect = await page.evaluate(() => localStorage.getItem('sh_plaid'))
+check('Failed Plaid disconnect leaves Plaid status unchanged', plaidAfterFailedDisconnect === plaidBeforeFailedDisconnect)
+await restoreStorage('setItem')
+
+await click('Stewardship Source') // retry once storage works again — real disconnect
+await page.waitForTimeout(300)
+check('Plaid disconnect succeeds once storage works again', !(await bodyHas('Storehouse Sandbox Bank')))
+
+await breakStorage('setItem', 'sh_plaid')
+await click('Stewardship Source') // now disconnected, so this attempts connect
+await page.waitForTimeout(2200) // sandbox connectPlaid() has an artificial ~1.5s delay before writing
+check('Failed Plaid connect shows an error toast', await waitBodyHas('Simulated storage failure'))
+check('Failed Plaid connect does NOT show the false "connected" success toast', !(await bodyHas('Stewardship source connected')))
+check('Failed Plaid connect leaves Plaid disconnected (no false success state)', !(await bodyHas('Storehouse Sandbox Bank')))
+await restoreStorage('setItem')
+
+// 14. Error-state regression: a failed provider.signOut() (no error handling
+//     before — an error would leave the UI stuck showing a signed-in screen
+//     behind a session the provider itself never confirmed closing) must
+//     still clear LOCAL session state via the caller's `finally` block, and
+//     must show a toast rather than failing silently. The `finally` is what
+//     the sign-in screen appearing here actually proves: the localStorage
+//     removal we've broken did NOT run, yet the UI still moved to
+//     signed-out — because Storehouse.jsx's `finally { setSignedIn(false) }`
+//     doesn't depend on the provider call having succeeded.
+await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.querySelector('svg.lucide-chevron-left'))?.click())
+await page.waitForTimeout(300)
+
+const userBeforeFailedSignOut = await page.evaluate(() => localStorage.getItem('sh_user'))
+await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'MG')?.click())
+await page.waitForSelector('text=Sign Out', { timeout: 3000 })
+
+await breakStorage('removeItem', 'sh_user')
+await click('Sign Out')
+await page.waitForTimeout(300)
+
+check('Failed sign-out still moves the UI to signed-out (finally-block clears local session state)', await bodyHas('Welcome back'))
+check('Failed sign-out shows an error toast rather than failing silently', await waitBodyHas('Simulated storage failure'))
+const userAfterFailedSignOut = await page.evaluate(() => localStorage.getItem('sh_user'))
+check('Underlying provider.signOut() call genuinely failed (localStorage untouched) — proves finally, not success, drove the UI change',
+  userAfterFailedSignOut === userBeforeFailedSignOut)
+await restoreStorage('removeItem')
 
 await browser.close()
 const failed = results.filter(([, ok]) => !ok)
