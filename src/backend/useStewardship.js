@@ -12,6 +12,8 @@ export function useStewardship() {
     goals: provider.getGoals(),
     stats: provider.computeStats(),
     plaid: provider.plaidStatus(),
+    householdMembers: provider.getHouseholdMembers(),
+    rewardRequests: provider.getRewardRequests(),
     provider
   }
 }

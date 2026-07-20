@@ -16,7 +16,10 @@
  */
 import { getSupabase, isLive } from './supabaseClient.js'
 
-const K = { user: 'sh_user', ledger: 'sh_ledger', goals: 'sh_goals', refl: 'sh_refl', plaid: 'sh_plaid', reflWeek: 'sh_refl_week' }
+const K = {
+  user: 'sh_user', ledger: 'sh_ledger', goals: 'sh_goals', refl: 'sh_refl', plaid: 'sh_plaid', reflWeek: 'sh_refl_week',
+  household: 'sh_household', rewards: 'sh_rewards'
+}
 
 const iso = (d) => d.toISOString().slice(0, 10)
 const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d) }
@@ -31,6 +34,12 @@ const SEED_LEDGER = [
 ]
 const SEED_GOALS = { tithe_percentage: 10, generosity_target: 300 }
 
+// Sub-record model: a household member is owned by the account holder, not
+// a separate login. Seeded so Control Center's "Approve £5" has someone to
+// approve a reward for on first load, matching the existing "Ethan" copy.
+const SEED_HOUSEHOLD = [{ id: 1, name: 'Ethan', relationship: 'child' }]
+const SEED_REWARDS = []
+
 const read = (k, fallback) => {
   try { const v = JSON.parse(localStorage.getItem(k)); return v ?? fallback } catch { return fallback }
 }
@@ -41,7 +50,7 @@ const emit = () => listeners.forEach((fn) => fn())
 const write = (k, v) => { writeRaw(k, v); emit() }
 
 // ---- live-mode in-memory cache (refreshed via realtime) ----
-let cache = { ledger: [], goals: SEED_GOALS, user: null, plaid: { connected: false } }
+let cache = { ledger: [], goals: SEED_GOALS, user: null, plaid: { connected: false }, household: [], rewardRequests: [] }
 let realtimeReady = false
 
 async function refreshLive() {
@@ -49,12 +58,16 @@ async function refreshLive() {
   const { data: { user } } = await sb.auth.getUser()
   cache.user = user ? { id: user.id, email: user.email, name: user.user_metadata?.name || 'Steward' } : null
   if (!user) { emit(); return }
-  const [{ data: ledger }, { data: goals }] = await Promise.all([
+  const [{ data: ledger }, { data: goals }, { data: household }, { data: rewardRequests }] = await Promise.all([
     sb.from('ledger').select('*').order('date', { ascending: false }).order('id', { ascending: false }),
-    sb.from('stewardship_goals').select('*').maybeSingle()
+    sb.from('stewardship_goals').select('*').maybeSingle(),
+    sb.from('household_members').select('*').order('id', { ascending: true }),
+    sb.from('reward_requests').select('*').order('created_at', { ascending: false })
   ])
   cache.ledger = ledger || []
   cache.goals = goals || SEED_GOALS
+  cache.household = household || []
+  cache.rewardRequests = rewardRequests || []
   emit()
 }
 
@@ -65,6 +78,8 @@ function ensureRealtime() {
   sb.channel('sh-ledger')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ledger' }, refreshLive)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'stewardship_goals' }, refreshLive)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'household_members' }, refreshLive)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reward_requests' }, refreshLive)
     .subscribe()
   // A session can go stale server-side (refresh token revoked, password
   // changed elsewhere, a failed background refresh) with no postgres_changes
@@ -78,6 +93,8 @@ function ensureRealtime() {
       cache.user = null
       cache.ledger = []
       cache.goals = SEED_GOALS
+      cache.household = []
+      cache.rewardRequests = []
       emit()
     }
   })
@@ -255,6 +272,66 @@ export const provider = {
     return isSundayEvening && read(K.reflWeek, '') !== weekKey()
   },
 
+  // ---- household (literal household members only, owner's own consent —
+  // sub-records of the account owner, NOT separate login/auth identities) ----
+  getHouseholdMembers() {
+    if (isLive()) return cache.household
+    return read(K.household, SEED_HOUSEHOLD)
+  },
+  /** Finds an existing household member by name (case-insensitive), or adds
+   *  one under the signed-in owner. There is no self-serve signup for a
+   *  household member — only the account owner can create these records. */
+  async ensureHouseholdMember(name, relationship = 'child') {
+    const existing = this.getHouseholdMembers().find((m) => m.name.toLowerCase() === name.toLowerCase())
+    if (existing) return existing
+    if (isLive()) {
+      const { data, error } = await getSupabase()
+        .from('household_members')
+        .insert({ auth_id: cache.user.id, name, relationship })
+        .select()
+        .single()
+      if (error) throw error
+      await refreshLive()
+      return data
+    }
+    const rows = this.getHouseholdMembers()
+    const id = Math.max(0, ...rows.map((m) => m.id)) + 1
+    const member = { id, name, relationship }
+    write(K.household, [...rows, member])
+    return member
+  },
+
+  // ---- reward requests ----
+  getRewardRequests() {
+    if (isLive()) return cache.rewardRequests
+    return read(K.rewards, SEED_REWARDS)
+  },
+  /** Parent/guardian approves a reward for a household member. There's no
+   *  child-initiated request flow yet (no child login) — the parent is the
+   *  one taking the action, so this creates and approves in a single step. */
+  async approveReward({ memberName, relationship = 'child', amount, reason }) {
+    const member = await this.ensureHouseholdMember(memberName, relationship)
+    const now = new Date().toISOString()
+    const entry = {
+      household_member_id: member.id,
+      amount,
+      reason,
+      status: 'approved',
+      approved_by: this.getUser()?.id ?? null,
+      approved_at: now
+    }
+    if (isLive()) {
+      const { data, error } = await getSupabase().from('reward_requests').insert(entry).select().single()
+      if (error) throw error
+      return data // realtime event refreshes cache
+    }
+    const rows = this.getRewardRequests()
+    const id = Math.max(0, ...rows.map((r) => r.id)) + 1
+    const record = { id, created_at: now, ...entry }
+    write(K.rewards, [record, ...rows])
+    return record
+  },
+
   // ---- plaid ----
   plaidStatus() {
     return read(K.plaid, { connected: false, institution: null })
@@ -291,7 +368,7 @@ export const provider = {
 
   // ---- sandbox utilities ----
   resetSandbox() {
-    ;[K.ledger, K.goals, K.refl, K.plaid, K.reflWeek].forEach((k) => localStorage.removeItem(k))
+    ;[K.ledger, K.goals, K.refl, K.plaid, K.reflWeek, K.household, K.rewards].forEach((k) => localStorage.removeItem(k))
     emit()
   }
 }

@@ -165,6 +165,34 @@ await page.waitForTimeout(300)
 check('Recent Activity shows the empty state after Start Fresh (no refresh)', await bodyHas('No transactions yet'))
 check('Still no page reload after Start Fresh', await page.evaluate(() => window.__noReloadMarker === 'set-before-add-tx'))
 
+// 10. Household reward approval (Control Center → Cards tab) — sandbox mode.
+//     "Approve £5" used to just flash a 2s toast with nothing persisted.
+//     Now it goes through provider.approveReward() (mirrors addLedger's
+//     dual-mode pattern) and creates a real reward_requests-style record,
+//     which shows up in a visible "Reward History" list on the card — not
+//     just a toast that disappears — with zero page reload.
+await page.evaluate(() => document.querySelector('.absolute.inset-0.bg-black\\/60')?.click()).catch(() => {})
+await page.waitForTimeout(200)
+await click('Cards')
+await page.waitForSelector('text=Control Center', { timeout: 3000 })
+
+const rewardsBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('sh_rewards') || '[]').length)
+check('No reward history shown before any approval', !(await bodyHas('approved')))
+
+await click('Approve £5')
+await page.waitForTimeout(300)
+
+check('Approving creates a real reward record (not just a toast)', await page.evaluate(
+  (before) => JSON.parse(localStorage.getItem('sh_rewards') || '[]').length === before + 1,
+  rewardsBefore
+))
+check('New reward record is approved, £5, tied to the household member', await page.evaluate(() => {
+  const row = JSON.parse(localStorage.getItem('sh_rewards') || '[]')[0]
+  return !!row && row.amount === 5 && row.status === 'approved' && !!row.approved_at && row.household_member_id === 1
+}))
+check('Approved reward now visible in Reward History (persists, not just a 2s toast)', await bodyHas('£5.00 approved'))
+check('No page reload occurred during reward approval', await page.evaluate(() => window.__noReloadMarker === 'set-before-add-tx'))
+
 await browser.close()
 const failed = results.filter(([, ok]) => !ok)
 console.log(`\n${results.length - failed.length}/${results.length} checks passed`)
