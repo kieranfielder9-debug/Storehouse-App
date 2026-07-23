@@ -161,6 +161,36 @@ function isOpaqueServerError(error) {
   return /sending confirmation email/i.test(error.message || '')
 }
 
+/** Maps raw Supabase auth errors to user-friendly messages. Raw error
+ *  strings like "Invalid login credentials" never reach the UI — users
+ *  see a sentence they can act on instead. */
+function mapAuthError(error) {
+  if (!error) return new Error("Something went wrong. Please try again or contact support.")
+  const msg = error.message || ""
+  const code = error.code || ""
+  // Sign-in: wrong password OR non-existent email — same message to
+  // prevent email enumeration (Supabase already does this server-side).
+  if (/invalid login credentials/i.test(msg))
+    return new Error("No account found with this email, or the password is incorrect.")
+  // Sign-up: password too short
+  if (/password.*at least 6/i.test(msg) || code === "weak_password")
+    return new Error("Password must be at least 6 characters.")
+  // Rate limiting
+  if (/rate limit/i.test(msg) || code === "over_request_rate_limit")
+    return new Error("Too many attempts. Please wait a minute and try again.")
+  // Email not confirmed
+  if (/email.*not.*confirmed/i.test(msg) || code === "email_not_confirmed")
+    return new Error("Check your email to confirm your account, then sign in.")
+  // Network / connection errors
+  if (/failed to fetch|networkerror|fetch error/i.test(msg))
+    return new Error("Could not connect to the server. Check your internet and try again.")
+  // Fallback: preserve the message if it is already friendly (from our own
+  // throws), otherwise use the generic fallback so no raw Supabase string leaks.
+  if (error instanceof Error && !/^[A-Z]/.test(msg))
+    return error  // already a friendly message from our own code
+  return new Error(msg || "Something went wrong. Please try again or contact support.")
+}
+
 // ------------------------------------------------------------------ facade
 export const provider = {
   mode: () => (isLive() ? 'live' : 'sandbox'),
@@ -195,7 +225,7 @@ export const provider = {
     if (isLive()) {
       const sb = getSupabase()
       const { error } = await sb.auth.signInWithPassword({ email, password })
-      if (error) throw error
+      if (error) throw mapAuthError(error)
       await refreshLive()
       if (!cache.user) throw new Error('Signed in, but no session was returned. Please try again.')
       return
@@ -220,7 +250,7 @@ export const provider = {
         if (isOpaqueServerError(res.error)) {
           throw new Error('Something went wrong creating your account and it was not created. Please wait a moment and try again — if it keeps happening, contact support.')
         }
-        throw res.error
+        throw mapAuthError(res.error)
       }
       const alreadyRegistered = res.data?.user?.identities?.length === 0
       if (alreadyRegistered) throw new Error('An account with this email already exists — try signing in instead.')
@@ -237,7 +267,7 @@ export const provider = {
     if (!email) throw new Error('Enter your email address first.')
     if (isLive()) {
       const { error } = await getSupabase().auth.resetPasswordForEmail(email, { redirectTo: window.location.origin })
-      if (error) throw error
+      if (error) throw mapAuthError(error)
       return
     }
     // Sandbox: nothing to reset — caller shows a sandbox-specific message.

@@ -10,9 +10,15 @@ export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPasswo
 
   const validateEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)
 
+  // Computed: is the form valid for each action?
+  const emailValid = validateEmail(email)
+  const passwordValid = password.length >= 6
+  const canSignIn = emailValid && password.length > 0 && !busy
+  const canCreate = emailValid && passwordValid && !busy
+
   const handleSignIn = () => {
     const errs = {}
-    if (!validateEmail(email)) errs.email = 'Enter a valid email address'
+    if (!emailValid) errs.email = 'Enter a valid email address'
     if (!password) errs.password = 'Enter your password'
     setErrors(errs)
     if (Object.keys(errs).length === 0) onSignIn(email, password)
@@ -20,7 +26,7 @@ export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPasswo
 
   const handleCreate = () => {
     const errs = {}
-    if (!validateEmail(email)) errs.email = 'Enter a valid email address'
+    if (!emailValid) errs.email = 'Enter a valid email address'
     if (password.length < 6) errs.password = 'Password must be at least 6 characters'
     setErrors(errs)
     if (Object.keys(errs).length === 0) onCreateAccount(email, password)
@@ -84,7 +90,7 @@ export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPasswo
 
         <button
           onClick={handleSignIn}
-          disabled={busy}
+          disabled={!canSignIn}
           className="mt-6 w-full py-4 rounded-2xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow flex items-center justify-center gap-2 disabled:opacity-60"
         >
           {busy ? 'Signing in…' : 'Sign In'} <ArrowRight className="h-4 w-4" />
@@ -106,7 +112,7 @@ export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPasswo
 
       <div className="pb-10 px-7 text-center relative">
         <p className="text-[11px] text-white/40">
-          New to Storehouse? <button onClick={handleCreate} disabled={busy} className="text-teal2 font-bold disabled:opacity-60">{busy ? 'Creating account…' : 'Create account'}</button>
+          New to Storehouse? <button onClick={handleCreate} disabled={!canCreate} className="text-teal2 font-bold disabled:opacity-60">{busy ? 'Creating account…' : 'Create account'}</button>
         </p>
         <p className="mt-3 text-[10px] text-white/30">
           🔒 We do not sell your data. Your financial stewardship is private.
