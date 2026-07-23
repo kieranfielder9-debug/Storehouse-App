@@ -184,6 +184,15 @@ function mapAuthError(error) {
   // Network / connection errors
   if (/failed to fetch|networkerror|fetch error/i.test(msg))
     return new Error("Could not connect to the server. Check your internet and try again.")
+  // OTP: code expired or invalid
+  if (/token.*expired|invalid.*token|otp/i.test(msg) && /expired|invalid/i.test(msg))
+    return new Error("That code has expired or is invalid. Request a new one and try again.")
+  // OTP: user not found (trying to sign in with shouldCreateUser: false)
+  if (/user not found|not.*registered|no.*account/i.test(msg))
+    return new Error("No account found with this email. Try creating an account instead.")
+  // OTP: rate limit on email sending
+  if (/email.*rate|too many.*email/i.test(msg))
+    return new Error("We just sent you a code. Please wait a minute before requesting another.")
   // Fallback: preserve the message if it is already friendly (from our own
   // throws), otherwise use the generic fallback so no raw Supabase string leaks.
   if (error instanceof Error && !/^[A-Z]/.test(msg))
@@ -275,6 +284,67 @@ export const provider = {
   async signOut() {
     if (isLive()) { await getSupabase().auth.signOut(); cache.user = null; emit(); return }
     localStorage.removeItem(K.user); emit()
+  },
+
+  // ---- email OTP auth ----
+  /** Send a 6-digit OTP code to the user's email. In live mode this calls
+   *  Supabase auth.signInWithOtp; in sandbox it's a no-op (any code works).
+   *  isSignUp=true creates a new account if the email is unknown; false
+   *  requires an existing account. */
+  async sendOtp(email, isSignUp) {
+    if (!email) throw new Error('Enter your email address first.')
+    if (isLive()) {
+      const sb = getSupabase()
+      const { error } = await sb.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: isSignUp }
+      })
+      if (error) throw mapAuthError(error)
+      return
+    }
+    // Sandbox: pretend to send — any 6-digit code will work.
+  },
+
+  /** Verify a 6-digit OTP code. Returns { isNewUser } so the UI can decide
+   *  whether to show the "enter your details" step. */
+  async verifyOtp(email, token, isSignUp) {
+    if (!token || token.length !== 6) throw new Error('Enter the 6-digit code.')
+    if (isLive()) {
+      const sb = getSupabase()
+      const { data, error } = await sb.auth.verifyOtp({
+        email,
+        token,
+        type: isSignUp ? 'signup' : 'email'
+      })
+      if (error) throw mapAuthError(error)
+      await refreshLive()
+      const isNewUser = isSignUp && !cache.user?.user_metadata?.name
+      return { isNewUser }
+    }
+    // Sandbox: accept any 6-digit code, create fake user.
+    write(K.user, { id: 'sandbox-user', email, name: email.split('@')[0] })
+    return { isNewUser: false }
+  },
+
+  /** Update the signed-in user's profile (name, etc.). Called after OTP
+   *  verification for new users who need to enter their details. */
+  async updateProfile({ name }) {
+    if (!name || !name.trim()) throw new Error('Enter your name.')
+    if (isLive()) {
+      const sb = getSupabase()
+      const { error } = await sb.auth.updateUser({ data: { name: name.trim() } })
+      if (error) throw mapAuthError(error)
+      await refreshLive()
+      return
+    }
+    const user = read(K.user, null)
+    if (user) write(K.user, { ...user, name: name.trim() })
+  },
+
+  /** Resend OTP — same as sendOtp but exposed as a separate method so the
+   *  UI can track a 60-second cooldown without a separate API call. */
+  async resendOtp(email, isSignUp) {
+    return this.sendOtp(email, isSignUp)
   },
 
   // ---- ledger ----

@@ -11,7 +11,7 @@ import BrandHeader from './components/BrandHeader.jsx'
 import BottomNav from './components/BottomNav.jsx'
 import Toast from './components/ui/Toast.jsx'
 
-import SignInScreen from './components/auth/SignInScreen.jsx'
+import AuthFlow from './components/auth/AuthFlow.jsx'
 import InstallPrompt from './components/InstallPrompt.jsx'
 
 import DashboardTab from './components/dashboard/DashboardTab.jsx'
@@ -175,12 +175,9 @@ export default function Storehouse() {
         <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-6">
           <PhoneFrame>
             <StatusBar />
-            <SignInScreen
-              onSignIn={handleSignIn}
-              onCreateAccount={handleCreateAccount}
-              onForgotPassword={handleForgotPassword}
-              onFaceId={handleFaceId}
-              busy={authBusy}
+            <AuthFlow
+              onAuthenticated={() => setSignedIn(true)}
+              provider={provider}
             />
             {toast && <Toast key={toast.id} message={toast.msg} type={toast.type} />}
           </PhoneFrame>
