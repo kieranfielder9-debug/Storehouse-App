@@ -184,6 +184,13 @@ function mapAuthError(error) {
   // Network / connection errors
   if (/failed to fetch|networkerror|fetch error/i.test(msg))
     return new Error("Could not connect to the server. Check your internet and try again.")
+  // Not a normal GoTrue error shape — this comes back when the request
+  // never reached Auth's business logic at all (e.g. a malformed
+  // VITE_SUPABASE_URL producing a mangled path, or the endpoint being
+  // unreachable at the project's Auth server). Never the user's fault, so
+  // don't imply a mistyped email/code.
+  if (/invalid path specified in request url/i.test(msg))
+    return new Error("We're having trouble reaching the account service right now. Please try again shortly, or contact support if this keeps happening.")
   // OTP: code expired or invalid
   if (/token.*expired|invalid.*token|otp/i.test(msg) && /expired|invalid/i.test(msg))
     return new Error("That code has expired or is invalid. Request a new one and try again.")

@@ -13,8 +13,14 @@
 </style>
 </head>
 <body>
-<h1>Storehouse — raw Supabase connectivity test (v3)</h1>
-<p>This bypasses the app entirely. Tap a button, read the box below.</p>
+<h1>Storehouse — raw Supabase connectivity test (v4)</h1>
+<p>This bypasses the app entirely and uses a hardcoded, known-correct bare
+project URL (no path suffix) — NOT whatever is set in Netlify's
+VITE_SUPABASE_URL. Tap a button, read the box below.</p>
+<p>If "4. Test OTP send" fails here with the same "Invalid path specified in
+request URL" error seen on the live site, the problem is on the Supabase
+project/Auth-server side, not the Netlify env var. If it SUCCEEDS here,
+that points at VITE_SUPABASE_URL being malformed in Netlify's env vars.</p>
 
 <label>Test email</label>
 <input id="email" value="" />
@@ -24,6 +30,7 @@
 <button onclick="testHealth()">1. Test basic connectivity</button>
 <button onclick="testSignUp()">2. Test Sign Up</button>
 <button onclick="testSignIn()">3. Test Sign In (after sign up)</button>
+<button onclick="testOtp()">4. Test OTP send (signInWithOtp)</button>
 
 <pre id="out">Results will appear here…</pre>
 
@@ -109,6 +116,17 @@
       describeAuthResult('SIGNIN RESULT', res)
     } catch (e) {
       out.textContent = 'SIGNIN THREW (uncaught): ' + (e && e.message) + '\n' + (e && e.stack)
+    }
+  }
+
+  async function testOtp() {
+    out.textContent = 'Sending OTP (signInWithOtp)…'
+    const email = document.getElementById('email').value
+    try {
+      const res = await client.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
+      describeAuthResult('OTP SEND RESULT', res)
+    } catch (e) {
+      out.textContent = 'OTP SEND THREW (uncaught): ' + (e && e.message) + '\n' + (e && e.stack)
     }
   }
 </script>
