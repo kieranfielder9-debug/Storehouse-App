@@ -3,7 +3,13 @@ import { createClient } from '@supabase/supabase-js'
 // Live mode activates automatically when these env vars exist (.env / Netlify env).
 // Without them the app runs in Sandbox mode (localStorage) — zero setup required.
 const rawUrl = import.meta.env.VITE_SUPABASE_URL
-const anon = import.meta.env.VITE_SUPABASE_ANON_KEY
+const rawAnon = import.meta.env.VITE_SUPABASE_ANON_KEY
+// Trim only — an anon key has no other structure worth validating here.
+// Guards against a stray leading/trailing space or newline from a
+// copy-paste (e.g. pasting into Netlify's env var UI from a phone), which
+// would otherwise still pass the `anon` truthiness check below and reach
+// createClient() with a malformed Authorization header on every request.
+const anon = typeof rawAnon === 'string' ? rawAnon.trim() : rawAnon
 
 /** VITE_SUPABASE_URL must be the bare project URL (e.g.
  *  "https://xxxxx.supabase.co") — no trailing slash, no "/rest/v1",
