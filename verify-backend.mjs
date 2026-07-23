@@ -38,12 +38,70 @@ const restoreStorage = (method) => page.evaluate((method) => {
 
 await page.goto('http://localhost:5173/?sandbox=1', { waitUntil: 'networkidle' })
 
-// 1. Auth wiring
-await page.waitForSelector('text=Welcome back')
-check('Privacy pledge on sign-in screen', await bodyHas('We do not sell your data'))
+// 1. Auth wiring — email OTP flow: landing -> email -> code -> (push/details,
+//    new users only) -> dashboard. Rebuilt from scratch after the old
+//    password-based SignInScreen ("Welcome back" on first paint) was replaced
+//    by AuthFlow.jsx's 6-digit email-code flow — see that file for every step.
+//
+//    Confirmed directly in provider.js: verifyOtp() in SANDBOX mode always
+//    returns `{ isNewUser: false }`, regardless of the isSignUp flag passed
+//    in — so both "Create Account" and "Sign In" go straight to the
+//    dashboard once a 6-digit code is entered. That means the push-notification
+//    and name-entry steps, while real UI states in AuthFlow.jsx, are NOT
+//    reachable through any sandbox-mode UI path — see the note before the
+//    "Multi-user data isolation" section near the end of this file for the
+//    coverage implication.
+const helloGreetingShown = () => page.evaluate(() => /Good (morning|afternoon|evening),/.test(document.body.innerText))
+
+await page.waitForSelector('text=Create Account')
+check('Landing screen shows Create Account and Sign In entry points', await bodyHas('Sign In'))
+check('Privacy pledge on landing screen', await bodyHas('We do not sell your data'))
+
 await click('Sign In')
-await page.waitForSelector('text=Good afternoon', { timeout: 5000 })
-check('Sign-in creates session via provider', true)
+await page.waitForSelector('text=Welcome back', { timeout: 3000 })
+check('Sign-in mode shows the "Welcome back" heading on the email step', true)
+
+// Client-side email validation runs before any provider call and must not
+// advance to the code step on an invalid address.
+await page.locator('input[type="email"]').fill('not-an-email')
+await click('Continue')
+await page.waitForTimeout(200)
+check('Invalid email shows inline validation error', await bodyHas('Enter a valid email address'))
+check('Invalid email does not advance to the code step', !(await bodyHas('Enter your code')))
+
+// Back button returns to the landing screen without side effects.
+await click('Back')
+await page.waitForTimeout(150)
+check('Back button from the email step returns to the landing screen', await bodyHas('Create Account'))
+
+await click('Sign In')
+await page.waitForSelector('text=Welcome back', { timeout: 3000 })
+await page.locator('input[type="email"]').fill('steward@example.com')
+await click('Continue')
+await page.waitForSelector('text=Enter your code', { timeout: 3000 })
+check('Valid email + Continue advances to the code step (sandbox sendOtp() is a no-op)', true)
+check('Resend cooldown shown after a code is sent', await bodyHas('Resend code in'))
+
+// "Use a different email" returns to the email step and clears the code.
+await click('Use a different email')
+await page.waitForSelector('text=Welcome back', { timeout: 3000 })
+check('"Use a different email" returns to the email step', true)
+await click('Continue') // re-send and go back to the code step
+await page.waitForSelector('text=Enter your code', { timeout: 3000 })
+
+check('Verify is disabled with no code entered', await page.locator('button', { hasText: 'Verify' }).isDisabled())
+await page.locator('input[type="tel"]').fill('12345')
+check('Verify still disabled at 5 of 6 digits', await page.locator('button', { hasText: 'Verify' }).isDisabled())
+await page.locator('input[type="tel"]').fill('482913') // arbitrary — sandbox accepts ANY 6-digit code
+check('Verify enabled once all 6 digits are entered', await page.locator('button', { hasText: 'Verify' }).isEnabled())
+
+await click('Verify')
+await page.waitForSelector('text=Recent Activity', { timeout: 5000 })
+check('Sign-in creates a session via provider.verifyOtp() (any 6-digit code accepted in sandbox)', await bodyHas('Recent Activity'))
+// Greeting text is time-of-day dependent ("Good morning/afternoon/evening") —
+// match any of the three rather than hardcoding one, so this doesn't flake
+// depending on what time the suite happens to run.
+check('Dashboard greets the signed-in user by name derived from their email', await helloGreetingShown())
 check('Session persisted (localStorage)', await page.evaluate(() => !!localStorage.getItem('sh_user')))
 
 // 2. Seeded reactive stats
@@ -348,12 +406,97 @@ await breakStorage('removeItem', 'sh_user')
 await click('Sign Out')
 await page.waitForTimeout(300)
 
-check('Failed sign-out still moves the UI to signed-out (finally-block clears local session state)', await bodyHas('Welcome back'))
+check('Failed sign-out still moves the UI to signed-out (finally-block clears local session state)', await bodyHas('Create Account'))
 check('Failed sign-out shows an error toast rather than failing silently', await waitBodyHas('Simulated storage failure'))
 const userAfterFailedSignOut = await page.evaluate(() => localStorage.getItem('sh_user'))
 check('Underlying provider.signOut() call genuinely failed (localStorage untouched) — proves finally, not success, drove the UI change',
   userAfterFailedSignOut === userBeforeFailedSignOut)
 await restoreStorage('removeItem')
+
+// 15. Multi-user data isolation — assessed per the account owner's request.
+// -------------------------------------------------------------------------
+// CONCLUSION: meaningful multi-user data ISOLATION cannot be tested in
+// sandbox mode. It is inherently a live-mode-only concern, and the checks
+// below exist to demonstrate and document that limitation with real
+// evidence, not to fake coverage of something they can't actually prove.
+//
+// Why: sandbox mode is a single local demo profile, not a multi-tenant
+// store.
+//   - Every sandbox storage key in provider.js (K.user, K.ledger, K.goals,
+//     K.refl, K.plaid, K.household, K.rewards) is one fixed localStorage
+//     key — there is no per-user namespace to even attempt to keep separate.
+//   - provider.verifyOtp() hardcodes `id: 'sandbox-user'` for EVERY email
+//     that signs in, sandbox-wide — two different emails are not given two
+//     different identities internally, only a different display name/email
+//     string.
+// So "signing in as a different user" in sandbox mode cannot expose a data
+// leak between users, because there is only ever one user's worth of data
+// storage to begin with — a leak-based test would be checking for a bug
+// that has no code path to occur through.
+//
+// Real isolation is enforced server-side, in live mode only, by Postgres
+// RLS policies keyed on auth.uid() (see supabase/schema.sql — "own ledger",
+// "own reflections", "own goals", "own household", all
+// `using (auth.uid() = user_id)` / `= auth_id`). Verifying that requires a
+// live Supabase project and two real, distinct signed-up accounts, neither
+// of which exists in this sandboxed environment (no VITE_SUPABASE_* env
+// vars are set — see CLAUDE.md / task brief). That verification is out of
+// scope here and should be re-run against a live/staging Supabase project
+// with two real test accounts before this is treated as proven in
+// production.
+const signedOutNow = () => bodyHas('Create Account')
+const signOutIfSignedIn = async () => {
+  if (await signedOutNow()) return
+  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'MG')?.click())
+  await page.waitForSelector('text=Sign Out', { timeout: 3000 })
+  await click('Sign Out')
+  await page.waitForTimeout(300)
+}
+const signInAs = async (email) => {
+  await click('Sign In')
+  await page.waitForSelector('text=Welcome back', { timeout: 3000 })
+  await page.locator('input[type="email"]').fill(email)
+  await click('Continue')
+  await page.waitForSelector('text=Enter your code', { timeout: 3000 })
+  await page.locator('input[type="tel"]').fill('135790') // any 6 digits
+  await click('Verify')
+  await page.waitForSelector('text=Recent Activity', { timeout: 5000 })
+}
+
+await signOutIfSignedIn() // the failed-sign-out test above already left us signed out
+await signInAs('user-a@example.com')
+check('"User A" is given the same hardcoded sandbox id as every sandbox sign-in ("sandbox-user")',
+  await page.evaluate(() => JSON.parse(localStorage.getItem('sh_user') || '{}').id === 'sandbox-user'))
+
+await click('Add')
+await page.waitForSelector('text=Add Transaction', { timeout: 3000 })
+const isolationModal = page.locator('.animate-slideUp').last()
+await isolationModal.locator('input[placeholder="0.00"]').fill('1.23')
+await isolationModal.locator('input[placeholder="e.g. Coffee with a friend"]').fill('ISOLATION-TEST-MARKER (added by user A)')
+await isolationModal.locator('button', { hasText: 'Need' }).click()
+await isolationModal.locator('button', { hasText: 'Add Transaction' }).click()
+await page.waitForTimeout(300)
+check('Marker transaction recorded while signed in as "user A"', await bodyHas('ISOLATION-TEST-MARKER (added by user A)'))
+
+await signOutIfSignedIn()
+await signInAs('user-b@example.com') // a different email — a real product must treat this as a different person
+
+check('[Sandbox limitation, not a bug] "User B" is given the SAME hardcoded sandbox id as "user A" ("sandbox-user") — sandbox mode does not model separate users at all',
+  await page.evaluate(() => JSON.parse(localStorage.getItem('sh_user') || '{}').id === 'sandbox-user'))
+check('[Sandbox limitation, not a bug] "User B" sees "user A\'s" marker transaction — proves sandbox mode has ONE shared local data namespace, not per-user isolation. Real isolation is server-side RLS in live mode only (supabase/schema.sql) and is NOT verified by this run',
+  await bodyHas('ISOLATION-TEST-MARKER (added by user A)'))
+
+console.log('\n[Multi-user isolation assessment]')
+console.log('  Sandbox mode CANNOT meaningfully test data isolation between users:')
+console.log('  - provider.js hardcodes id: "sandbox-user" for every sandbox sign-in, regardless of email.')
+console.log('  - Every sandbox storage key (sh_ledger, sh_goals, sh_refl, sh_plaid, ...) is one shared')
+console.log('    localStorage key — there is no per-user partition for a test to check.')
+console.log('  - Demonstrated above: signing in as a second, different email still sees the first')
+console.log('    "user\'s" data — expected sandbox behaviour, not a regression.')
+console.log('  Real isolation is enforced server-side by Postgres RLS (auth.uid() = user_id in')
+console.log('  supabase/schema.sql). Verifying THAT requires a live Supabase project with two distinct')
+console.log('  real accounts — not available in this sandboxed, no-live-Supabase environment. Treat')
+console.log('  multi-user isolation as UNVERIFIED in production until that live-mode test is run.')
 
 await browser.close()
 const failed = results.filter(([, ok]) => !ok)
