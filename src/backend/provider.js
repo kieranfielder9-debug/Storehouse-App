@@ -13,6 +13,11 @@
  * the session itself has died (SIGNED_OUT / a refresh with no session), so
  * callers that gate UI on hasSession()/getUser() should subscribe rather
  * than read those once — see Storehouse.jsx.
+ *
+ * Loading state: in live mode, cache.user starts null and is populated
+ * asynchronously by refreshLive(). isLoading() returns true until that first
+ * fetch completes, so callers can show a loading screen instead of flashing
+ * the sign-in page on every refresh.
  */
 import { getSupabase, isLive } from './supabaseClient.js'
 
@@ -50,24 +55,44 @@ const emit = () => listeners.forEach((fn) => fn())
 const write = (k, v) => { writeRaw(k, v); emit() }
 
 // ---- live-mode in-memory cache (refreshed via realtime) ----
-let cache = { ledger: [], goals: SEED_GOALS, user: null, plaid: { connected: false }, household: [], rewardRequests: [] }
+let cache = {
+  ledger: [],
+  goals: SEED_GOALS,
+  user: null,
+  reflections: [],
+  plaid: { connected: false, institution: null },
+  household: [],
+  rewardRequests: []
+}
 let realtimeReady = false
+// In live mode, the first refreshLive() hasn't completed yet. Callers
+// should check isLoading() to show a loading screen instead of flashing
+// the sign-in page while the session is being restored from storage.
+let loading = isLive()
 
 async function refreshLive() {
   const sb = getSupabase()
   const { data: { user } } = await sb.auth.getUser()
   cache.user = user ? { id: user.id, email: user.email, name: user.user_metadata?.name || 'Steward' } : null
-  if (!user) { emit(); return }
-  const [{ data: ledger }, { data: goals }, { data: household }, { data: rewardRequests }] = await Promise.all([
+  if (!user) {
+    cache.reflections = []
+    loading = false
+    emit()
+    return
+  }
+  const [{ data: ledger }, { data: goals }, { data: household }, { data: rewardRequests }, { data: reflections }] = await Promise.all([
     sb.from('ledger').select('*').order('date', { ascending: false }).order('id', { ascending: false }),
     sb.from('stewardship_goals').select('*').maybeSingle(),
     sb.from('household_members').select('*').order('id', { ascending: true }),
-    sb.from('reward_requests').select('*').order('created_at', { ascending: false })
+    sb.from('reward_requests').select('*').order('created_at', { ascending: false }),
+    sb.from('reflections').select('*').order('date', { ascending: false })
   ])
   cache.ledger = ledger || []
   cache.goals = goals || SEED_GOALS
   cache.household = household || []
   cache.rewardRequests = rewardRequests || []
+  cache.reflections = reflections || []
+  loading = false
   emit()
 }
 
@@ -80,6 +105,7 @@ function ensureRealtime() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'stewardship_goals' }, refreshLive)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'household_members' }, refreshLive)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'reward_requests' }, refreshLive)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reflections' }, refreshLive)
     .subscribe()
   // A session can go stale server-side (refresh token revoked, password
   // changed elsewhere, a failed background refresh) with no postgres_changes
@@ -95,11 +121,19 @@ function ensureRealtime() {
       cache.goals = SEED_GOALS
       cache.household = []
       cache.rewardRequests = []
+      cache.reflections = []
       emit()
     }
   })
   refreshLive()
 }
+
+// Eagerly start the realtime + session check on module load in live mode,
+// instead of waiting for the first subscribe() call. This means cache.user
+// starts populating as soon as the module is imported, not after React's
+// first useEffect — closing the window where hasSession() falsely returns
+// false on a page refresh with a valid persisted session.
+if (isLive()) ensureRealtime()
 
 /** Detects Supabase/GoTrue returning an opaque 5xx ("AuthRetryableFetchError")
  *  on signup, with no usable error body — supabase-js treats *any* 5xx from
@@ -130,6 +164,14 @@ function isOpaqueServerError(error) {
 // ------------------------------------------------------------------ facade
 export const provider = {
   mode: () => (isLive() ? 'live' : 'sandbox'),
+
+  /** True until the first refreshLive() completes in live mode. Callers
+   *  should show a loading screen while this is true, instead of flashing
+   *  the sign-in page (hasSession() returns false until the session is
+   *  restored from storage, even if the user is actually signed in). */
+  isLoading() {
+    return loading
+  },
 
   subscribe(fn) {
     listeners.add(fn)
@@ -259,14 +301,14 @@ export const provider = {
 
   // ---- reflections ----
   getReflections() {
-    if (isLive()) return [] // fetched on demand in live mode; not needed for MVP UI
+    if (isLive()) return cache.reflections
     return read(K.refl, [])
   },
   async addReflection(content) {
     if (isLive()) {
       const { error } = await getSupabase().from('reflections').insert({ user_id: cache.user.id, content })
       if (error) throw error
-      return
+      return // realtime event refreshes cache
     }
     write(K.refl, [{ date: iso(new Date()), content }, ...this.getReflections()])
   },
@@ -339,6 +381,7 @@ export const provider = {
 
   // ---- plaid ----
   plaidStatus() {
+    if (isLive()) return cache.plaid
     return read(K.plaid, { connected: false, institution: null })
   },
   async connectPlaid() {
@@ -351,6 +394,10 @@ export const provider = {
     write(K.plaid, { connected: true, institution: 'Storehouse Sandbox Bank' })
   },
   async disconnectPlaid() {
+    if (isLive() && import.meta.env.VITE_PLAID_LIVE === 'true') {
+      await disconnectPlaidLive()
+      return
+    }
     write(K.plaid, { connected: false, institution: null })
   },
 
@@ -393,28 +440,66 @@ function weekKey() {
 async function connectPlaidLive() {
   const sb = getSupabase()
   const { data: { session } } = await sb.auth.getSession()
-  const res = await fetch('/.netlify/functions/plaid-create-link-token', {
+  if (!session) throw new Error('No active session — please sign in again.')
+
+  const linkRes = await fetch('/.netlify/functions/plaid-create-link-token', {
     method: 'POST',
     headers: { Authorization: `Bearer ${session.access_token}` }
   })
-  const { link_token } = await res.json()
+  if (!linkRes.ok) {
+    const body = await linkRes.text().catch(() => '')
+    throw new Error(`Could not start bank linking (${linkRes.status}). ${body}`)
+  }
+  const { link_token } = await linkRes.json()
+  if (!link_token) throw new Error('Bank linking failed — no link token returned. Please try again.')
+
   await loadPlaidScript()
   return new Promise((resolve, reject) => {
     const handler = window.Plaid.create({
       token: link_token,
       onSuccess: async (public_token, metadata) => {
-        await fetch('/.netlify/functions/plaid-exchange-public-token', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ public_token })
-        })
-        write(K.plaid, { connected: true, institution: metadata.institution?.name || 'Linked bank' })
-        resolve()
+        try {
+          const exchangeRes = await fetch('/.netlify/functions/plaid-exchange-public-token', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ public_token })
+          })
+          if (!exchangeRes.ok) {
+            throw new Error(`Could not complete bank linking (${exchangeRes.status}). Please try again.`)
+          }
+          cache.plaid = { connected: true, institution: metadata.institution?.name || 'Linked bank' }
+          emit()
+          resolve()
+        } catch (err) {
+          reject(err)
+        }
       },
       onExit: (err) => (err ? reject(err) : resolve())
     })
     handler.open()
   })
+}
+
+/** Disconnect a live Plaid link: calls a serverless function to invalidate
+ *  the token at Plaid (itemRemove) and delete the plaid_items row, then
+ *  clears the local cache. The access token is no longer valid at Plaid
+ *  after this — not just hidden in the UI. */
+async function disconnectPlaidLive() {
+  const sb = getSupabase()
+  const { data: { session } } = await sb.auth.getSession()
+  if (!session) throw new Error('No active session — please sign in again.')
+
+  const res = await fetch('/.netlify/functions/plaid-remove-item', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${session.access_token}` }
+  })
+  if (!res.ok) {
+    // Still clear locally — the user's intent is to disconnect regardless
+    // of whether the server-side cleanup succeeds. Log for debugging.
+    console.warn('plaid-remove-item returned non-OK:', res.status)
+  }
+  cache.plaid = { connected: false, institution: null }
+  emit()
 }
 
 function loadPlaidScript() {

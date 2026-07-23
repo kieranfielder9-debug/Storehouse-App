@@ -3,9 +3,28 @@ import { ArrowRight, Eye, EyeOff, Fingerprint, Mail, Lock } from 'lucide-react'
 import StorehouseMark from '../StorehouseMark.jsx'
 
 export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPassword, onFaceId, busy }) {
-  const [email, setEmail] = useState('michael.gladstone@example.com')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
+  const [errors, setErrors] = useState({})
+
+  const validateEmail = (val) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)
+
+  const handleSignIn = () => {
+    const errs = {}
+    if (!validateEmail(email)) errs.email = 'Enter a valid email address'
+    if (!password) errs.password = 'Enter your password'
+    setErrors(errs)
+    if (Object.keys(errs).length === 0) onSignIn(email, password)
+  }
+
+  const handleCreate = () => {
+    const errs = {}
+    if (!validateEmail(email)) errs.email = 'Enter a valid email address'
+    if (password.length < 6) errs.password = 'Password must be at least 6 characters'
+    setErrors(errs)
+    if (Object.keys(errs).length === 0) onCreateAccount(email, password)
+  }
 
   return (
     <div className="absolute inset-0 z-[70] bg-midnight flex flex-col">
@@ -29,25 +48,26 @@ export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPasswo
         <div className="mt-8 space-y-3">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1.5">Email</p>
-            <div className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-trustnavy border border-white/10 focus-within:border-teal2/60">
+            <div className={`flex items-center gap-3 px-3.5 py-3 rounded-xl bg-trustnavy border ${errors.email ? 'border-rose-500/60' : 'border-white/10 focus-within:border-teal2/60'}`}>
               <Mail className="h-4 w-4 text-white/40" />
               <input
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({ ...errors, email: null }) }}
                 type="email"
                 className="flex-1 bg-transparent text-white text-sm focus:outline-none"
                 placeholder="you@example.com"
               />
             </div>
+            {errors.email && <p className="text-[10px] text-rose-400 mt-1">{errors.email}</p>}
           </div>
 
           <div>
             <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1.5">Password</p>
-            <div className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-trustnavy border border-white/10 focus-within:border-teal2/60">
+            <div className={`flex items-center gap-3 px-3.5 py-3 rounded-xl bg-trustnavy border ${errors.password ? 'border-rose-500/60' : 'border-white/10 focus-within:border-teal2/60'}`}>
               <Lock className="h-4 w-4 text-white/40" />
               <input
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: null }) }}
                 type={showPw ? 'text' : 'password'}
                 placeholder="Enter your password"
                 className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder-white/25"
@@ -56,13 +76,14 @@ export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPasswo
                 {showPw ? <EyeOff className="h-4 w-4 text-white/40" /> : <Eye className="h-4 w-4 text-white/40" />}
               </button>
             </div>
+            {errors.password && <p className="text-[10px] text-rose-400 mt-1">{errors.password}</p>}
           </div>
 
           <button onClick={() => onForgotPassword(email)} className="text-[11px] text-teal2 font-semibold">Forgot password?</button>
         </div>
 
         <button
-          onClick={() => onSignIn(email, password)}
+          onClick={handleSignIn}
           disabled={busy}
           className="mt-6 w-full py-4 rounded-2xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow flex items-center justify-center gap-2 disabled:opacity-60"
         >
@@ -85,7 +106,7 @@ export default function SignInScreen({ onSignIn, onCreateAccount, onForgotPasswo
 
       <div className="pb-10 px-7 text-center relative">
         <p className="text-[11px] text-white/40">
-          New to Storehouse? <button onClick={() => onCreateAccount(email, password)} disabled={busy} className="text-teal2 font-bold disabled:opacity-60">{busy ? 'Creating account…' : 'Create account'}</button>
+          New to Storehouse? <button onClick={handleCreate} disabled={busy} className="text-teal2 font-bold disabled:opacity-60">{busy ? 'Creating account…' : 'Create account'}</button>
         </p>
         <p className="mt-3 text-[10px] text-white/30">
           🔒 We do not sell your data. Your financial stewardship is private.

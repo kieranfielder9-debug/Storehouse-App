@@ -3,9 +3,10 @@ import { FlaskConical, X, PlusCircle, HandCoins, ShoppingBag, RotateCcw, BookHea
 import { useStewardship } from '../../backend/useStewardship.js'
 
 /** Dev-only Sandbox: trigger mock events and watch the dashboard react live.
- *  Visible in `npm run dev`, or on any build via ?sandbox=1 in the URL. */
-const enabled = () =>
-  import.meta.env.DEV || new URLSearchParams(window.location.search).has('sandbox')
+ *  Visible only in `npm run dev` (Vite DEV mode). Removed ?sandbox=1 URL
+ *  param access — that was a production security hole allowing anyone to
+ *  inject mock data into their real account on the live site. */
+const enabled = () => import.meta.env.DEV
 
 export default function SandboxPanel({ flashToast }) {
   const [open, setOpen] = useState(false)

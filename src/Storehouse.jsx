@@ -3,6 +3,7 @@ import { Home, LineChart, CreditCard, Briefcase } from 'lucide-react'
 import { provider } from './backend/provider.js'
 import SandboxPanel from './components/dev/SandboxPanel.jsx'
 import ReflectionModal from './modals/ReflectionModal.jsx'
+import ErrorBoundary from './components/ui/ErrorBoundary.jsx'
 
 import PhoneFrame from './components/PhoneFrame.jsx'
 import StatusBar from './components/StatusBar.jsx'
@@ -46,7 +47,8 @@ const TABS = [
 ]
 
 export default function Storehouse() {
-  const [signedIn, setSignedIn] = useState(() => provider.hasSession())
+  // null = loading (waiting for session check), true = signed in, false = signed out
+  const [signedIn, setSignedIn] = useState(() => provider.isLoading() ? null : provider.hasSession())
   const [activeTab, setActiveTab] = useState('dashboard')
   const [toast, setToast] = useState(null)
   const [reflectionOpen, setReflectionOpen] = useState(false)
@@ -56,7 +58,10 @@ export default function Storehouse() {
   // session died server-side (revoked token, password changed elsewhere, a
   // failed refresh) — without this, an already-open tab would keep showing
   // cached ledger/goals data under a dead session. No-op in sandbox mode.
-  useEffect(() => provider.subscribe(() => setSignedIn(provider.hasSession())), [])
+  // Also picks up the initial session resolution once loading completes.
+  useEffect(() => provider.subscribe(() => {
+    if (!provider.isLoading()) setSignedIn(provider.hasSession())
+  }), [])
 
   // Weekly Stewardship Reflection: Sunday evenings (once/week) + sandbox trigger
   useEffect(() => {
@@ -86,9 +91,9 @@ export default function Storehouse() {
 
   const [authBusy, setAuthBusy] = useState(false)
 
-  const flashToast = (msg) => {
+  const flashToast = (msg, type = 'success') => {
     const id = Date.now()
-    setToast({ msg, id })
+    setToast({ msg, type, id })
     // Only clear if this is still the toast showing — an older toast's
     // stale timer must not wipe out a newer one that replaced it early.
     setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 3600)
@@ -97,8 +102,8 @@ export default function Storehouse() {
   // Surfaces otherwise-invisible crashes (e.g. on a phone with no dev tools
   // attached) as a toast instead of a silent dead button.
   useEffect(() => {
-    const onError = (e) => flashToast(e?.error?.message || e?.message || 'Something went wrong — please try again.')
-    const onRejection = (e) => flashToast(e?.reason?.message || 'Something went wrong — please try again.')
+    const onError = (e) => flashToast(e?.error?.message || e?.message || 'Something went wrong — please try again.', 'error')
+    const onRejection = (e) => flashToast(e?.reason?.message || 'Something went wrong — please try again.', 'error')
     window.addEventListener('error', onError)
     window.addEventListener('unhandledrejection', onRejection)
     return () => {
@@ -117,21 +122,21 @@ export default function Storehouse() {
       await provider.signIn(email, password)
       setSignedIn(true)
     } catch (e) {
-      flashToast(e?.message || 'Sign-in failed')
+      flashToast(e?.message || 'Sign-in failed', 'error')
     } finally {
       setAuthBusy(false)
     }
   }
 
   const handleCreateAccount = async (email, password) => {
-    if (!password) { flashToast('Enter a password to create your account.'); return }
+    if (!password) { flashToast('Enter a password to create your account.', 'error'); return }
     setAuthBusy(true)
     try {
       const { needsEmailConfirmation } = await provider.signUp(email, password)
       if (needsEmailConfirmation) flashToast('Check your email to confirm your account, then sign in.')
       else setSignedIn(true)
     } catch (e) {
-      flashToast(e?.message || 'Could not create account')
+      flashToast(e?.message || 'Could not create account', 'error')
     } finally {
       setAuthBusy(false)
     }
@@ -142,141 +147,161 @@ export default function Storehouse() {
       await provider.resetPassword(email)
       flashToast(provider.mode() === 'live' ? 'Password reset email sent.' : 'Sandbox mode: no email is sent here.')
     } catch (e) {
-      flashToast(e?.message || 'Could not send reset email')
+      flashToast(e?.message || 'Could not send reset email', 'error')
     }
   }
 
   const handleFaceId = () => flashToast('Face ID demo — use email sign-in for a live account.')
 
+  // Loading state: in live mode, show a minimal loading screen while
+  // the provider resolves the session from Supabase storage. Without
+  // this, the sign-in screen flashes on every page refresh.
+  if (signedIn === null) {
+    return (
+      <ErrorBoundary>
+        <div className="min-h-screen w-full flex items-center justify-center bg-midnight">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 rounded-full border-2 border-teal2/30 border-t-teal2 animate-spin" />
+            <p className="text-sm text-white/40">Loading your stewardship…</p>
+          </div>
+        </div>
+      </ErrorBoundary>
+    )
+  }
+
   if (!signedIn) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-6">
-        <PhoneFrame>
-          <StatusBar />
-          <SignInScreen
-            onSignIn={handleSignIn}
-            onCreateAccount={handleCreateAccount}
-            onForgotPassword={handleForgotPassword}
-            onFaceId={handleFaceId}
-            busy={authBusy}
-          />
-          {toast && <Toast key={toast.id} message={toast.msg} />}
-        </PhoneFrame>
-      </div>
+      <ErrorBoundary>
+        <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-6">
+          <PhoneFrame>
+            <StatusBar />
+            <SignInScreen
+              onSignIn={handleSignIn}
+              onCreateAccount={handleCreateAccount}
+              onForgotPassword={handleForgotPassword}
+              onFaceId={handleFaceId}
+              busy={authBusy}
+            />
+            {toast && <Toast key={toast.id} message={toast.msg} type={toast.type} />}
+          </PhoneFrame>
+        </div>
+      </ErrorBoundary>
     )
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-6">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-teal-500/10 blur-3xl" />
-        <div className="absolute bottom-0 right-10 h-[320px] w-[320px] rounded-full bg-amber-400/5 blur-3xl" />
+    <ErrorBoundary>
+      <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-6">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-teal-500/10 blur-3xl" />
+          <div className="absolute bottom-0 right-10 h-[320px] w-[320px] rounded-full bg-amber-400/5 blur-3xl" />
+        </div>
+
+        <PhoneFrame>
+          <StatusBar />
+          <BrandHeader
+            unreadCount={2}
+            onHome={() => { setActiveTab('dashboard'); flashToast('Home') }}
+            onBell={() => setNotifOpen(true)}
+            onProfile={() => setProfileOpen(true)}
+          />
+
+          <main className="flex-1 overflow-y-auto no-scrollbar pb-32 px-5">
+            {activeTab === 'dashboard' && (
+              <DashboardTab
+                onOpenWrap={() => setWrapOpen(true)}
+                onOpenTx={() => setTxOpen(true)}
+                onOpenAddTx={() => setAddTxOpen(true)}
+                onOpenBalance={(kind) => setBalanceDetail(kind)}
+                onOpenBudget={() => setBudgetOpen(true)}
+                onPay={() => setPayOpen(true)}
+                onGive={() => setGiveOpen(true)}
+                onQR={() => setPayOpen(true)}
+                onTopUp={() => flashToast('Top-up flow opened')}
+                onOpenChild={() => { setActiveTab('cards'); flashToast("Opening Ethan's Wisdom Wallet") }}
+                flashToast={flashToast}
+              />
+            )}
+            {activeTab === 'invest' && (
+              <InvestTab
+                onOpenPie={setPieDetail}
+                onOpenStock={setStockDetail}
+                onOpenValues={() => setValuesOpen(true)}
+                flashToast={flashToast}
+              />
+            )}
+            {activeTab === 'cards' && (
+              <CardsTab
+                flashToast={flashToast}
+                onOpenCardOptions={setCardOptions}
+              />
+            )}
+            {activeTab === 'capital' && (
+              <CapitalTab onInvest={setInvestAmountOpen} flashToast={flashToast} />
+            )}
+          </main>
+
+          <BottomNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
+
+          {toast && <Toast key={toast.id} message={toast.msg} type={toast.type} />}
+
+          <InstallPrompt />
+          <SandboxPanel flashToast={flashToast} />
+          {reflectionOpen && <ReflectionModal onClose={() => setReflectionOpen(false)} flashToast={flashToast} />}
+
+          {/* Profile menu + sub-views */}
+          {profileOpen && (
+            <ProfileMenu
+              onClose={() => setProfileOpen(false)}
+              onSelect={(view) => { setProfileView(view); setProfileOpen(false) }}
+              onSignOut={async () => {
+                setProfileOpen(false)
+                try {
+                  await provider.signOut()
+                } catch (e) {
+                  flashToast(e?.message || 'Sign-out ran into an issue, but you have been signed out locally.', 'error')
+                } finally {
+                  setSignedIn(false)
+                }
+              }}
+            />
+          )}
+          {profileView === 'account'     && <AccountView     onBack={() => setProfileView(null)} flashToast={flashToast} />}
+          {profileView === 'preferences' && <PreferencesView onBack={() => setProfileView(null)} flashToast={flashToast} />}
+          {profileView === 'refer'       && <ReferView       onBack={() => setProfileView(null)} flashToast={flashToast} />}
+          {profileView === 'statements'  && <StatementsView  onBack={() => setProfileView(null)} flashToast={flashToast} />}
+          {profileView === 'help'        && <HelpView        onBack={() => setProfileView(null)} flashToast={flashToast} />}
+
+          {/* Notifications */}
+          {notifOpen && <NotificationsDrawer onClose={() => setNotifOpen(false)} flashToast={flashToast} />}
+
+          {/* Dashboard modals */}
+          {wrapOpen      && <WeeklyWrapModal     onClose={() => setWrapOpen(false)} />}
+          {txOpen        && <TransactionModal    onClose={() => setTxOpen(false)} flashToast={flashToast} />}
+          {addTxOpen     && <AddTransactionModal onClose={() => setAddTxOpen(false)} flashToast={flashToast} />}
+          {balanceDetail && <BalanceDetailModal  kind={balanceDetail} onClose={() => setBalanceDetail(null)} flashToast={flashToast} />}
+          {budgetOpen    && <BudgetDetailModal   onClose={() => setBudgetOpen(false)} flashToast={flashToast} />}
+          {payOpen       && <PayTransferModal    onClose={() => setPayOpen(false)} flashToast={flashToast} />}
+          {giveOpen      && <GiveModal           onClose={() => setGiveOpen(false)} flashToast={flashToast} />}
+
+          {/* Invest modals */}
+          {pieDetail     && <PieDetailModal      pie={pieDetail} onClose={() => setPieDetail(null)} />}
+          {stockDetail   && <StockDetailModal    stock={stockDetail} onClose={() => setStockDetail(null)} flashToast={flashToast} />}
+          {valuesOpen    && <ValuesQuizModal     onClose={() => setValuesOpen(false)} flashToast={flashToast} />}
+
+          {/* Cards modal */}
+          {cardOptions   && <CardOptionsModal    card={cardOptions} onClose={() => setCardOptions(null)} flashToast={flashToast} />}
+
+          {/* Capital modal */}
+          {investAmountOpen && (
+            <InvestAmountModal
+              item={investAmountOpen}
+              onClose={() => setInvestAmountOpen(null)}
+              onConfirm={() => { setInvestAmountOpen(null); flashToast('Investment placed — Welcome, steward.') }}
+            />
+          )}
+        </PhoneFrame>
       </div>
-
-      <PhoneFrame>
-        <StatusBar />
-        <BrandHeader
-          unreadCount={2}
-          onHome={() => { setActiveTab('dashboard'); flashToast('Home') }}
-          onBell={() => setNotifOpen(true)}
-          onProfile={() => setProfileOpen(true)}
-        />
-
-        <main className="flex-1 overflow-y-auto no-scrollbar pb-32 px-5">
-          {activeTab === 'dashboard' && (
-            <DashboardTab
-              onOpenWrap={() => setWrapOpen(true)}
-              onOpenTx={() => setTxOpen(true)}
-              onOpenAddTx={() => setAddTxOpen(true)}
-              onOpenBalance={(kind) => setBalanceDetail(kind)}
-              onOpenBudget={() => setBudgetOpen(true)}
-              onPay={() => setPayOpen(true)}
-              onGive={() => setGiveOpen(true)}
-              onQR={() => setPayOpen(true)}
-              onTopUp={() => flashToast('Top-up flow opened')}
-              onOpenChild={() => { setActiveTab('cards'); flashToast("Opening Ethan's Wisdom Wallet") }}
-              flashToast={flashToast}
-            />
-          )}
-          {activeTab === 'invest' && (
-            <InvestTab
-              onOpenPie={setPieDetail}
-              onOpenStock={setStockDetail}
-              onOpenValues={() => setValuesOpen(true)}
-              flashToast={flashToast}
-            />
-          )}
-          {activeTab === 'cards' && (
-            <CardsTab
-              flashToast={flashToast}
-              onOpenCardOptions={setCardOptions}
-            />
-          )}
-          {activeTab === 'capital' && (
-            <CapitalTab onInvest={setInvestAmountOpen} flashToast={flashToast} />
-          )}
-        </main>
-
-        <BottomNav tabs={TABS} active={activeTab} onChange={setActiveTab} />
-
-        {toast && <Toast key={toast.id} message={toast.msg} />}
-
-        <InstallPrompt />
-        <SandboxPanel flashToast={flashToast} />
-        {reflectionOpen && <ReflectionModal onClose={() => setReflectionOpen(false)} flashToast={flashToast} />}
-
-        {/* Profile menu + sub-views */}
-        {profileOpen && (
-          <ProfileMenu
-            onClose={() => setProfileOpen(false)}
-            onSelect={(view) => { setProfileView(view); setProfileOpen(false) }}
-            onSignOut={async () => {
-              setProfileOpen(false)
-              try {
-                await provider.signOut()
-              } catch (e) {
-                flashToast(e?.message || 'Sign-out ran into an issue, but you have been signed out locally.')
-              } finally {
-                setSignedIn(false)
-              }
-            }}
-          />
-        )}
-        {profileView === 'account'     && <AccountView     onBack={() => setProfileView(null)} flashToast={flashToast} />}
-        {profileView === 'preferences' && <PreferencesView onBack={() => setProfileView(null)} flashToast={flashToast} />}
-        {profileView === 'refer'       && <ReferView       onBack={() => setProfileView(null)} flashToast={flashToast} />}
-        {profileView === 'statements'  && <StatementsView  onBack={() => setProfileView(null)} flashToast={flashToast} />}
-        {profileView === 'help'        && <HelpView        onBack={() => setProfileView(null)} flashToast={flashToast} />}
-
-        {/* Notifications */}
-        {notifOpen && <NotificationsDrawer onClose={() => setNotifOpen(false)} flashToast={flashToast} />}
-
-        {/* Dashboard modals */}
-        {wrapOpen      && <WeeklyWrapModal     onClose={() => setWrapOpen(false)} />}
-        {txOpen        && <TransactionModal    onClose={() => setTxOpen(false)} flashToast={flashToast} />}
-        {addTxOpen     && <AddTransactionModal onClose={() => setAddTxOpen(false)} flashToast={flashToast} />}
-        {balanceDetail && <BalanceDetailModal  kind={balanceDetail} onClose={() => setBalanceDetail(null)} flashToast={flashToast} />}
-        {budgetOpen    && <BudgetDetailModal   onClose={() => setBudgetOpen(false)} flashToast={flashToast} />}
-        {payOpen       && <PayTransferModal    onClose={() => setPayOpen(false)} flashToast={flashToast} />}
-        {giveOpen      && <GiveModal           onClose={() => setGiveOpen(false)} flashToast={flashToast} />}
-
-        {/* Invest modals */}
-        {pieDetail     && <PieDetailModal      pie={pieDetail} onClose={() => setPieDetail(null)} />}
-        {stockDetail   && <StockDetailModal    stock={stockDetail} onClose={() => setStockDetail(null)} flashToast={flashToast} />}
-        {valuesOpen    && <ValuesQuizModal     onClose={() => setValuesOpen(false)} flashToast={flashToast} />}
-
-        {/* Cards modal */}
-        {cardOptions   && <CardOptionsModal    card={cardOptions} onClose={() => setCardOptions(null)} flashToast={flashToast} />}
-
-        {/* Capital modal */}
-        {investAmountOpen && (
-          <InvestAmountModal
-            item={investAmountOpen}
-            onClose={() => setInvestAmountOpen(null)}
-            onConfirm={() => { setInvestAmountOpen(null); flashToast('Investment placed — Welcome, steward.') }}
-          />
-        )}
-      </PhoneFrame>
-    </div>
+    </ErrorBoundary>
   )
 }

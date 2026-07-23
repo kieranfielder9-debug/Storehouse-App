@@ -7,11 +7,13 @@ export function useStewardship() {
   useEffect(() => provider.subscribe(force), [])
   return {
     mode: provider.mode(),
+    loading: provider.isLoading(),
     user: provider.getUser(),
     ledger: provider.getLedger(),
     goals: provider.getGoals(),
     stats: provider.computeStats(),
     plaid: provider.plaidStatus(),
+    reflections: provider.getReflections(),
     householdMembers: provider.getHouseholdMembers(),
     rewardRequests: provider.getRewardRequests(),
     provider

@@ -9,20 +9,41 @@ const plaid = new PlaidApi(new Configuration({
   baseOptions: { headers: { 'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID, 'PLAID-SECRET': process.env.PLAID_SECRET } }
 }))
 
+function json(statusCode, body) {
+  return { statusCode, body: JSON.stringify(body) }
+}
+
 exports.handler = async (event) => {
-  const jwt = (event.headers.authorization || '').replace('Bearer ', '')
-  const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
-  const { data: { user }, error } = await admin.auth.getUser(jwt)
-  if (error || !user) return { statusCode: 401, body: 'Unauthorized' }
+  if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' })
 
-  const { public_token } = JSON.parse(event.body || '{}')
-  const res = await plaid.itemPublicTokenExchange({ public_token })
+  try {
+    const jwt = (event.headers.authorization || '').replace('Bearer ', '')
+    if (!jwt) return json(401, { error: 'Missing authorization token' })
 
-  const { error: dbErr } = await admin.from('plaid_items').upsert({
-    user_id: user.id,
-    access_token: res.data.access_token,
-    item_id: res.data.item_id
-  })
-  if (dbErr) return { statusCode: 500, body: dbErr.message }
-  return { statusCode: 200, body: JSON.stringify({ ok: true }) }
+    const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    const { data: { user }, error } = await admin.auth.getUser(jwt)
+    if (error || !user) return json(401, { error: 'Unauthorized' })
+
+    let body
+    try { body = JSON.parse(event.body || '{}') } catch { return json(400, { error: 'Invalid JSON body' }) }
+    const { public_token } = body
+    if (!public_token) return json(400, { error: 'Missing public_token' })
+
+    const res = await plaid.itemPublicTokenExchange({ public_token })
+
+    const { error: dbErr } = await admin.from('plaid_items').upsert({
+      user_id: user.id,
+      access_token: res.data.access_token,
+      item_id: res.data.item_id
+    })
+    if (dbErr) {
+      console.error('plaid-exchange: DB insert failed:', dbErr)
+      return json(500, { error: 'Could not store bank connection' })
+    }
+
+    return json(200, { ok: true })
+  } catch (err) {
+    console.error('plaid-exchange-public-token error:', err)
+    return json(500, { error: 'Could not exchange public token', detail: err.message })
+  }
 }
