@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { Star, Building2, Leaf, BookOpen, Heart, Sprout, Search, Filter } from 'lucide-react'
 import CauseCard from './CauseCard.jsx'
+import { KINGDOM_STAKE } from './kingdomStake.js'
+// Ported from the Expo rebuild's MeasurementScreen.tsx (see /home/user/kieranfielder/app) —
+// see each component's own header comment for what's real vs. illustrative data.
+import JubileeCountdown from './JubileeCountdown.jsx'
+import KingdomImpactLog from './KingdomImpactLog.jsx'
 
 const ITEMS = [
   {
@@ -46,9 +51,11 @@ export default function CapitalTab({ onInvest, flashToast }) {
         </div>
         <div className="text-right">
           <p className="text-[10px] uppercase tracking-widest text-gold">Your stake</p>
-          <p className="text-base font-bold text-white">£1,250</p>
+          <p className="text-base font-bold text-white">£{KINGDOM_STAKE.toLocaleString()}</p>
         </div>
       </div>
+
+      <JubileeCountdown />
 
       <button
         onClick={() => onInvest(featured)}
@@ -94,6 +101,8 @@ export default function CapitalTab({ onInvest, flashToast }) {
       {filtered.map(item => (
         <CauseCard key={item.id} item={item} onInvest={() => onInvest(item)} />
       ))}
+
+      <KingdomImpactLog flashToast={flashToast} />
 
       <button
         onClick={() => flashToast('Submit your project')}

@@ -21,9 +21,13 @@ create table public.users (
 );
 
 create table public.stewardship_goals (
-  user_id           uuid primary key references public.users (auth_id) on delete cascade,
-  tithe_percentage  numeric not null default 10,
-  generosity_target numeric not null default 0
+  user_id             uuid primary key references public.users (auth_id) on delete cascade,
+  tithe_percentage    numeric not null default 10,
+  generosity_target   numeric not null default 0,
+  -- Added for the Giving Targets rings (Tithe / Offerings / Kingdom Fund) —
+  -- see supabase/migration-002-giving-targets.sql for the live-DB migration.
+  offerings_target    numeric not null default 0,
+  kingdom_fund_target numeric not null default 0
 );
 
 create table public.ledger (
