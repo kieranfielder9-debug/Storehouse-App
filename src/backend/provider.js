@@ -37,7 +37,12 @@ const SEED_LEDGER = [
   { id: 4, date: daysAgo(3), amount: 2840.00, category: 'Income',    description: 'Salary — Riverbank Ltd',                    meta: 'Income · 27 May' },
   { id: 5, date: daysAgo(6), amount: -74.00,  category: 'Giving',    description: 'Compassion UK — Sponsorship',               meta: 'Standing Order · Last week' }
 ]
-const SEED_GOALS = { tithe_percentage: 10, generosity_target: 300 }
+// offerings_target / kingdom_fund_target: added for the Giving Targets rings
+// (ported from the Expo rebuild's Planning screen — see
+// src/components/dashboard/GivingTargets.jsx). Additive fields alongside the
+// existing tithe_percentage/generosity_target; see
+// supabase/migration-002-giving-targets.sql for the live-DB migration.
+const SEED_GOALS = { tithe_percentage: 10, generosity_target: 300, offerings_target: 50, kingdom_fund_target: 500 }
 
 // Sub-record model: a household member is owned by the account holder, not
 // a separate login. Seeded so Control Center's "Approve £5" has someone to
@@ -515,10 +520,15 @@ export const provider = {
     const rows = this.getLedger().filter((r) => r.date >= cutoff)
     const income = rows.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0)
     const giving = rows.filter((r) => r.category === 'Giving').reduce((s, r) => s + Math.abs(r.amount), 0)
+    // 'Offerings' is a distinct ledger category from 'Giving' (which today
+    // doubles as "tithe") — added for the Giving Targets rings. No seeded
+    // ledger rows use it yet, so this is honestly £0 until a steward logs one.
+    const offeringsGiven = rows.filter((r) => r.category === 'Offerings').reduce((s, r) => s + Math.abs(r.amount), 0)
     const titheTarget = (income * (goals.tithe_percentage ?? 10)) / 100
     return {
       income,
       giving,
+      offeringsGiven,
       ratio: income ? (giving / income) * 100 : 0,
       givingPct: titheTarget ? Math.min(100, (giving / titheTarget) * 100) : 0,
       titheTarget,

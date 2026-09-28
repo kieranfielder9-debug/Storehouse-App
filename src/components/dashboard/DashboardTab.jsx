@@ -7,6 +7,14 @@ import TransactionFeed from './TransactionFeed.jsx'
 import QuickActions from '../payments/QuickActions.jsx'
 import ChildOverview from './ChildOverview.jsx'
 import AnalyticsSection from './AnalyticsSection.jsx'
+// Ported from the Expo rebuild (see /home/user/kieranfielder/app) — see each
+// component's own header comment for what's real vs. illustrative data.
+import StorehouseCube from './StorehouseCube.jsx'
+import HealthScoreCard from './HealthScoreCard.jsx'
+import StreamSplitter from './StreamSplitter.jsx'
+import GivingTargets from './GivingTargets.jsx'
+import StewardshipAssessment from './StewardshipAssessment.jsx'
+import RecentActivityStream from './RecentActivityStream.jsx'
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -36,12 +44,18 @@ export default function DashboardTab({
       </div>
 
       <BalanceSplit onSelect={onOpenBalance} />
+      <StorehouseCube />
+      <HealthScoreCard />
       <QuickActions onPay={onPay} onGive={onGive} onQR={onQR} onTopUp={onTopUp} />
+      <StreamSplitter />
       <StewardshipSource flashToast={flashToast} />
+      <GivingTargets />
       <WeeklyWrapCard onClick={onOpenWrap} />
       <BudgetCard onOpen={onOpenBudget} givingPct={stats.givingPct} />
       <ChildOverview onOpen={onOpenChild} />
       <AnalyticsSection flashToast={flashToast} />
+      <StewardshipAssessment flashToast={flashToast} />
+      <RecentActivityStream />
       <TransactionFeed onOpenTx={onOpenTx} onAdd={onOpenAddTx} />
     </div>
   )
