@@ -168,11 +168,20 @@ function isOpaqueServerError(error) {
 
 /** Maps raw Supabase auth errors to user-friendly messages. Raw error
  *  strings like "Invalid login credentials" never reach the UI — users
- *  see a sentence they can act on instead. */
-function mapAuthError(error) {
+ *  see a sentence they can act on instead. Anything we don't recognise gets
+ *  a generic message (details go to console.error only). Exported so the
+ *  regression suite can check the mapping without a live Supabase project. */
+export function mapAuthError(error) {
   if (!error) return new Error("Something went wrong. Please try again or contact support.")
   const msg = error.message || ""
   const code = error.code || ""
+  // Signups closed: signInWithOtp answers "Signups not allowed for otp"
+  // (code otp_disabled) when it can't create the user — signups are switched
+  // off for the project, or this is sign-in mode with an email we don't know.
+  // Either way the honest answer today is "invite-only". Checked first so no
+  // broader pattern below can shadow it.
+  if (/signups? not allowed/i.test(msg) || code === "otp_disabled" || code === "signup_disabled")
+    return new Error("Storehouse is invite-only at the moment. If you've been invited, use the email your invite was sent to.")
   // Sign-in: wrong password OR non-existent email — same message to
   // prevent email enumeration (Supabase already does this server-side).
   if (/invalid login credentials/i.test(msg))
@@ -205,11 +214,11 @@ function mapAuthError(error) {
   // OTP: rate limit on email sending
   if (/email.*rate|too many.*email/i.test(msg))
     return new Error("We just sent you a code. Please wait a minute before requesting another.")
-  // Fallback: preserve the message if it is already friendly (from our own
-  // throws), otherwise use the generic fallback so no raw Supabase string leaks.
-  if (error instanceof Error && !/^[A-Z]/.test(msg))
-    return error  // already a friendly message from our own code
-  return new Error(msg || "Something went wrong. Please try again or contact support.")
+  // Fallback: an error we don't recognise. Its raw text can carry internal
+  // detail (table names, SQL, request paths), so it never reaches the user —
+  // log it for debugging and show a generic message.
+  console.error('[auth] unmapped error:', { status: error.status, code, message: msg })
+  return new Error("Something went wrong. Please try again, or contact support if it keeps happening.")
 }
 
 // ------------------------------------------------------------------ facade
@@ -329,8 +338,21 @@ export const provider = {
         type: isSignUp ? 'signup' : 'email'
       })
       if (error) throw mapAuthError(error)
+      // Only treat the user as signed in if Supabase actually handed back a
+      // session. A response without one means this code signed nobody in —
+      // calling onAuthenticated() anyway would show the app to a signed-out user.
+      const notSignedIn = "We couldn't sign you in with that code. Please request a new code and try again."
+      if (!data?.session) {
+        console.error('[auth] verifyOtp succeeded but returned no session')
+        throw new Error(notSignedIn)
+      }
       await refreshLive()
-      const isNewUser = isSignUp && !cache.user?.user_metadata?.name
+      if (!cache.user) throw new Error(notSignedIn)
+      // "New" = this account has no name on it yet. Read it from the user that
+      // verifyOtp returned: cache.user is a slimmed { id, email, name } and has
+      // no user_metadata, so the old check on it was always true and asked
+      // existing users (who chose "Create Account") for a name to overwrite theirs.
+      const isNewUser = isSignUp && !data.user?.user_metadata?.name
       return { isNewUser }
     }
     // Sandbox: accept any 6-digit code, create fake user.
@@ -564,8 +586,10 @@ async function connectPlaidLive() {
     headers: { Authorization: `Bearer ${session.access_token}` }
   })
   if (!linkRes.ok) {
+    // The response body is for the console, not the user.
     const body = await linkRes.text().catch(() => '')
-    throw new Error(`Could not start bank linking (${linkRes.status}). ${body}`)
+    console.error('plaid-create-link-token failed:', linkRes.status, body)
+    throw new Error(`Could not start bank linking (${linkRes.status}). Please try again in a moment.`)
   }
   const { link_token } = await linkRes.json()
   if (!link_token) throw new Error('Bank linking failed — no link token returned. Please try again.')

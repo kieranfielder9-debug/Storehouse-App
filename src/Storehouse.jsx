@@ -100,10 +100,13 @@ export default function Storehouse() {
   }
 
   // Surfaces otherwise-invisible crashes (e.g. on a phone with no dev tools
-  // attached) as a toast instead of a silent dead button.
+  // attached) as a toast instead of a silent dead button. The toast is always
+  // generic — a raw error message can carry internal detail (table names, SQL,
+  // request paths) — and the real error goes to the console for debugging.
   useEffect(() => {
-    const onError = (e) => flashToast(e?.error?.message || e?.message || 'Something went wrong — please try again.', 'error')
-    const onRejection = (e) => flashToast(e?.reason?.message || 'Something went wrong — please try again.', 'error')
+    const generic = 'Something went wrong — please try again.'
+    const onError = (e) => { console.error('Unhandled error:', e?.error || e?.message || e); flashToast(generic, 'error') }
+    const onRejection = (e) => { console.error('Unhandled promise rejection:', e?.reason || e); flashToast(generic, 'error') }
     window.addEventListener('error', onError)
     window.addEventListener('unhandledrejection', onRejection)
     return () => {

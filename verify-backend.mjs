@@ -2,7 +2,13 @@ import { chromium } from 'playwright'
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
 const page = await (await browser.newContext({ viewport: { width: 460, height: 880 } })).newPage()
-page.on('pageerror', (e) => console.error('PAGE ERROR:', e.message))
+// Errors injected by the "error hygiene" checks below carry this marker (and the
+// final ErrorBoundary check deliberately crashes a render) so their expected
+// page errors don't look like real ones in the run log.
+let expectingPageErrors = false
+page.on('pageerror', (e) => { if (!expectingPageErrors && !e.message.includes('INJECTED-TEST-ERROR')) console.error('PAGE ERROR:', e.message) })
+const consoleErrors = []
+page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()) })
 const results = []
 const check = (name, ok) => { results.push([name, ok]); console.log(ok ? 'PASS' : 'FAIL', '—', name) }
 const click = (needle) => page.evaluate((n) => {
@@ -15,6 +21,37 @@ const bodyHas = (t) => page.evaluate((x) => document.body.innerText.includes(x),
 const waitBodyHas = async (t, timeout = 2000) => {
   try { await page.waitForFunction((x) => document.body.innerText.includes(x), t, { timeout }); return true }
   catch { return false }
+}
+
+// --- Error hygiene: raw internal error text must never reach the user ---------
+// Storehouse.jsx turns otherwise-invisible crashes (window 'error' /
+// 'unhandledrejection') into a toast. That toast must be generic — a raw message
+// can carry table names, SQL or request paths — with the real error sent to
+// console.error only. The toast is rendered on BOTH the signed-out and signed-in
+// branches, so this is checked on each. Marks existing toast spans so a check can
+// tell a fresh toast (from the event just injected) from one still on screen.
+const GENERIC_TOAST = 'Something went wrong — please try again.'
+const markToastsSeen = () => page.evaluate(() => document.querySelectorAll('span').forEach((s) => s.setAttribute('data-seen', '1')))
+const waitFreshToast = (t) => page.waitForFunction(
+  (x) => [...document.querySelectorAll('span')].some((s) => s.textContent.includes(x) && !s.hasAttribute('data-seen')),
+  t, { timeout: 2000 }).then(() => true, () => false)
+const errorHygieneChecks = async (where) => {
+  for (const kind of ['rejection', 'uncaught']) {
+    const marker = `INJECTED-TEST-ERROR-${kind.toUpperCase()}`
+    const label = kind === 'rejection' ? 'unhandled promise rejection' : 'uncaught error'
+    const logged = consoleErrors.length
+    await markToastsSeen()
+    await page.evaluate(({ kind, marker }) => {
+      const err = new Error(`${marker} relation "public.secret_table" does not exist`)
+      if (kind === 'rejection') Promise.reject(err)
+      else setTimeout(() => { throw err }, 0)
+    }, { kind, marker })
+    check(`Error hygiene (${where}): ${label} shows the generic "Something went wrong" toast`, await waitFreshToast(GENERIC_TOAST))
+    check(`Error hygiene (${where}): ${label} toast does NOT leak the raw error text`,
+      !(await bodyHas(marker)) && !(await bodyHas('secret_table')))
+    check(`Error hygiene (${where}): ${label} details go to console.error instead`,
+      consoleErrors.slice(logged).some((t) => t.includes(marker)))
+  }
 }
 
 // --- Failure simulation for error-state coverage -----------------------
@@ -56,6 +93,35 @@ const helloGreetingShown = () => page.evaluate(() => /Good (morning|afternoon|ev
 await page.waitForSelector('text=Create Account')
 check('Landing screen shows Create Account and Sign In entry points', await bodyHas('Sign In'))
 check('Privacy pledge on landing screen', await bodyHas('We do not sell your data'))
+
+// 1b. Error hygiene on the SIGNED-OUT branch (toast must render here too), plus
+//     provider.mapAuthError: the invite-only mapping and the generic fallback.
+//     mapAuthError is a pure function, so it's exercised directly via a dynamic
+//     import of the dev server's module — no live Supabase needed.
+await errorHygieneChecks('signed-out screen')
+const mapped = await page.evaluate(async () => {
+  const { mapAuthError } = await import('/src/backend/provider.js')
+  const cases = {
+    inviteOtp:  { message: 'Signups not allowed for otp', status: 422, code: 'otp_disabled' },
+    inviteCode: { message: '', status: 422, code: 'otp_disabled' },
+    inviteInst: { message: 'Signups not allowed for this instance', status: 422, code: 'signup_disabled' },
+    rawUnknown: { message: 'relation "public.users" does not exist', status: 500 },
+    expired:    { message: 'Token has expired or is invalid', status: 403, code: 'otp_expired' },
+    rateLimit:  { message: 'email rate limit exceeded', status: 429, code: 'over_email_send_rate_limit' },
+    badLogin:   { message: 'Invalid login credentials', status: 400 }
+  }
+  return Object.fromEntries(Object.entries(cases).map(([k, v]) => [k, mapAuthError(v).message]))
+})
+const INVITE_ONLY = "Storehouse is invite-only at the moment. If you've been invited, use the email your invite was sent to."
+check('mapAuthError: "Signups not allowed for otp" -> the invite-only message', mapped.inviteOtp === INVITE_ONLY)
+check('mapAuthError: invite-only also recognised by error code alone (otp_disabled)', mapped.inviteCode === INVITE_ONLY)
+check('mapAuthError: signup_disabled ("Signups not allowed for this instance") -> invite-only too', mapped.inviteInst === INVITE_ONLY)
+check('mapAuthError: an unrecognised raw error gets the generic message, never its raw text',
+  mapped.rawUnknown === 'Something went wrong. Please try again, or contact support if it keeps happening.' && !/relation/.test(mapped.rawUnknown))
+check('mapAuthError: existing friendly mappings unchanged (expired code, rate limit, bad login)',
+  mapped.expired === 'That code has expired or is invalid. Request a new one and try again.' &&
+  mapped.rateLimit === 'Too many attempts. Please wait a minute and try again.' &&
+  mapped.badLogin === 'No account found with this email, or the password is incorrect.')
 
 await click('Sign In')
 await page.waitForSelector('text=Welcome back', { timeout: 3000 })
@@ -107,6 +173,9 @@ check('Session persisted (localStorage)', await page.evaluate(() => !!localStora
 // 2. Seeded reactive stats
 check('Stewardship ratio 10.0% seeded', await bodyHas('10.0%'))
 check('Connect Stewardship Source button on dashboard', await bodyHas('Stewardship Source'))
+
+// 2b. Error hygiene on the SIGNED-IN branch (same generic-toast rule as above).
+await errorHygieneChecks('signed-in dashboard')
 
 // 3. Sandbox: mock income → stats update WITHOUT refresh
 await page.evaluate(() => [...document.querySelectorAll('button[title="Sandbox"]')][0]?.click())
@@ -497,6 +566,21 @@ console.log('  Real isolation is enforced server-side by Postgres RLS (auth.uid(
 console.log('  supabase/schema.sql). Verifying THAT requires a live Supabase project with two distinct')
 console.log('  real accounts — not available in this sandboxed, no-live-Supabase environment. Treat')
 console.log('  multi-user isolation as UNVERIFIED in production until that live-mode test is run.')
+
+// 16. ErrorBoundary must show friendly text, not the raw render error. Sandbox
+//     stores the ledger as plain JSON, so a non-array value makes the dashboard
+//     throw while rendering ("...filter is not a function") — a deterministic
+//     render crash. Runs last: it leaves the app on the fallback screen.
+expectingPageErrors = true
+await page.evaluate(() => localStorage.setItem('sh_ledger', '{"broken":true}'))
+await page.reload({ waitUntil: 'networkidle' })
+await waitBodyHas('Reload app')
+check('ErrorBoundary: a render crash shows the friendly fallback screen',
+  (await bodyHas('Something went wrong')) && (await bodyHas('Reloading usually sorts it')))
+check('ErrorBoundary: fallback does NOT show the raw render error',
+  !(await bodyHas('is not a function')) && !(await bodyHas('TypeError')))
+check('ErrorBoundary: the real render error is sent to console.error instead',
+  consoleErrors.some((t) => t.includes('ErrorBoundary caught') && t.includes('is not a function')))
 
 await browser.close()
 const failed = results.filter(([, ok]) => !ok)

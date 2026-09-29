@@ -7,11 +7,13 @@ import { Component } from 'react'
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false, message: null }
+    this.state = { hasError: false }
   }
 
-  static getDerivedStateFromError(error) {
-    return { hasError: true, message: error?.message || 'Something went wrong.' }
+  static getDerivedStateFromError() {
+    // Deliberately no error text in state: the raw message can carry internal
+    // detail users shouldn't see. It goes to the console in componentDidCatch.
+    return { hasError: true }
   }
 
   componentDidCatch(error, info) {
@@ -24,7 +26,7 @@ export default class ErrorBoundary extends Component {
         <div className="min-h-screen w-full flex items-center justify-center bg-midnight p-6">
           <div className="text-center max-w-sm">
             <p className="text-lg font-bold text-white mb-2">Something went wrong</p>
-            <p className="text-sm text-white/50 mb-4">{this.state.message}</p>
+            <p className="text-sm text-white/50 mb-4">Sorry about that. Reloading usually sorts it — if it doesn't, please contact support.</p>
             <button
               onClick={() => window.location.reload()}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm"
