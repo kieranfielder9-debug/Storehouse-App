@@ -6,15 +6,15 @@ Brand: Deep Midnight background (#0B0F19), Trust Navy cards (#111C30), Teal grad
 
 ## The goal
 
-Take Storehouse from a polished, fully-mocked prototype to a product genuinely trustworthy with real money — sequenced so early, free, personal-use steps never block on later steps that need capital or regulatory authorisation the founder doesn't have yet. Full phased roadmap (with sourced FCA/provider figures): see the "Path to Real Money" artifact from July 2026.
+Take Storehouse from a polished, fully-mocked prototype to a product genuinely trustworthy with real money — sequenced so early, free, personal-use steps never block on later steps that need capital or regulatory authorisation the founder doesn't have yet. Full phased roadmap: see the "Path to Real Money" artifact from July 2026 — its RAISP and authorisation figures are superseded by the ones below.
 
-Roadmap shape, in order:
+Roadmap shape, in order (figures re-checked September 2026 from search results — confirm FCA amounts in the FCA fee calculator before filing anything):
 0. Stabilise the current build (auth, deploys) — £0, no licence.
 1. Real Mode — the account owner's own real transactions, entered by hand — £0, no licence.
-2. Real automated bank sync, for the account owner only — small cost once funded, no licence (personal use).
+2. Real automated bank sync, for the account owner only — possibly £0 via personal bank APIs (Monzo, Starling) or Enable Banking's restricted production mode; the mainstream aggregators (TrueLayer, Plaid, Yapily) are sandbox-only on free tiers and sales-led for live UK access. No licence (personal use).
 3. Extend real functionality to the household (Ethan's Wisdom Wallet) — £0, stay strictly household-scoped.
-4. Build the public case — waitlist, closed beta, brand/UX polish, start the RAISP conversation if read-only data for others is wanted (£250 FCA fee, no capital requirement).
-5. Real money for real strangers — full authorisation (£15k–£80k+ all-in) or a Banking-as-a-Service partner (Griffin, ClearBank, Railsr, Weavr). Mandatory once serving anyone outside the household; no shortcut exists.
+4. Build the public case — waitlist, closed beta, brand/UX polish. If read-only data for others is wanted: RAISP registration (≈£1,130 FCA application fee, plus annual FCA fees and mandatory professional indemnity insurance; no capital requirement). Use the FCA's free Pre-Application Support Service first. The ICO data protection fee (£52/yr) applies as soon as anyone outside the household signs up.
+5. Real money for real strangers — small EMI/PI registration (roughly £15k–£80k+ all-in once advice and insurance are added), full authorised EMI (€350k capital plus advisers — a different order of magnitude), or a Banking-as-a-Service partner (Griffin, ClearBank, Railsr, Weavr). Mandatory once serving anyone outside the household; no shortcut exists.
 6. Investing & Kingdom Capital (equity crowdfunding) — deliberately last; heaviest regulatory lift of the three domains bundled in the original prototype.
 
 Constraint that shapes everything: time to invest, not capital. Every recommendation should respect that until Phase 4+ produces real traction to fund the rest.
@@ -45,3 +45,4 @@ Note: this roster folds the former standalone `baas-partnerships-lead` role into
 - Small proof before big bets. A working, honest, narrow thing today beats a perfect six-month plan.
 - Delegate, don't hoard. The orchestrator coordinates; the named specialists do the specialist work.
 - Your money, your risk, your call. Specialists surface tradeoffs and flag regulatory lines; the account owner makes the final call on anything with real financial or legal weight.
+- Every push to `main` is a live production deploy — and on Netlify's credit-based plans each one costs 15 of 300 free monthly credits. Verify before pushing, and batch changes into as few pushes as practical.
