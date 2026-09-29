@@ -1,5 +1,5 @@
-import { ArrowUpRight, PlayCircle, Sparkles, ChevronRight, Award, Clock, Star, Users, Quote } from 'lucide-react'
-import { MODULES, TRACKS, STATS } from './data.js'
+import { ArrowUpRight, PlayCircle, Sparkles, ChevronRight, Award, Clock, Star } from 'lucide-react'
+import { MODULES, TRACKS } from './data.js'
 
 export default function Home({ onOpenModule }) {
   return (
@@ -20,7 +20,7 @@ export default function Home({ onOpenModule }) {
                 <span className="bg-gradient-to-r from-teal2 via-gold to-teal2 bg-clip-text text-transparent">the Kingdom way.</span>
               </h1>
               <p className="mt-5 text-lg text-white/65 leading-relaxed max-w-xl">
-                Biblical stewardship modules for kids, teens and adults — taught one bite-sized lesson at a time and applied live inside the Storehouse banking app.
+                Biblical stewardship modules for kids, teens and adults — taught one bite-sized lesson at a time and put into practice in the Storehouse stewardship app.
               </p>
               <div className="mt-7 flex items-center gap-3">
                 <button className="px-5 py-3.5 rounded-2xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow border border-white/20 flex items-center gap-2">
@@ -29,13 +29,6 @@ export default function Home({ onOpenModule }) {
                 <button className="px-5 py-3.5 rounded-2xl bg-trustnavy/80 border border-white/10 text-white font-bold text-sm flex items-center gap-2 hover:border-teal2/40">
                   <PlayCircle className="h-4 w-4 text-teal2"/> Watch 90-sec preview
                 </button>
-              </div>
-
-              <div className="mt-10 grid grid-cols-4 gap-6">
-                <Stat label="Active learners" value={STATS.learners}/>
-                <Stat label="Families"        value={STATS.families}/>
-                <Stat label="Modules"         value={STATS.modules}/>
-                <Stat label="Completions"     value={STATS.completions}/>
               </div>
             </div>
 
@@ -121,43 +114,7 @@ export default function Home({ onOpenModule }) {
           </div>
         </div>
       </section>
-
-      {/* TESTIMONIAL */}
-      <section className="max-w-7xl mx-auto px-8 mt-20">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Testimonial
-            quote="My 9-year-old asked to tithe his birthday money. We've never even said the word 'tithe' at home. Whatever Wisdom Wallet is doing — it's working."
-            who="Rachel Davies"
-            role="Parent · Leeds"
-            color="from-teal1 to-teal2"
-            initial="R"
-          />
-          <Testimonial
-            quote="Best discipleship tool we've added to youth ministry in five years. Practical, biblical, and the kids actually want to do it."
-            who="Pastor James Whitaker"
-            role="Huddersfield Christian Fellowship"
-            color="from-amber-500 to-orange-500"
-            initial="J"
-          />
-          <Testimonial
-            quote="I'm 38 and learned more about generous giving in three modules than in twenty years of church. Beautifully done."
-            who="Naomi Okafor"
-            role="Member · Bradford"
-            color="from-fuchsia-500 to-purple-500"
-            initial="N"
-          />
-        </div>
-      </section>
     </main>
-  )
-}
-
-function Stat({ label, value }) {
-  return (
-    <div>
-      <p className="text-2xl font-extrabold text-white">{value}</p>
-      <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold mt-0.5">{label}</p>
-    </div>
   )
 }
 
@@ -223,7 +180,6 @@ function FeaturedCard({ module, onOpen }) {
           <div className="mt-4 flex items-center gap-4 text-[11px] text-white/55">
             <span className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 text-teal2"/> 6 lessons</span>
             <span className="flex items-center gap-1.5"><Award className="h-3.5 w-3.5 text-teal2"/> Badge: {module.badge}</span>
-            <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5 text-teal2"/> 1,240 finished</span>
           </div>
           <button onClick={onOpen} className="mt-5 px-5 py-3 rounded-xl bg-gradient-to-r from-teal1 to-teal2 text-white font-bold text-sm shadow-glow border border-white/20 flex items-center gap-2 w-fit">
             Begin module <ArrowUpRight className="h-4 w-4"/>
@@ -305,22 +261,6 @@ function PhoneIllustration() {
       </div>
       <div className="absolute -top-4 -right-4 h-14 w-14 rounded-full bg-gradient-to-br from-teal1 to-teal2 flex items-center justify-center shadow-glow border-4 border-midnight rotate-12">
         <Award className="h-6 w-6 text-white"/>
-      </div>
-    </div>
-  )
-}
-
-function Testimonial({ quote, who, role, color, initial }) {
-  return (
-    <div className="rounded-2xl p-6 bg-trustnavy border border-white/10 shadow-card">
-      <Quote className="h-5 w-5 text-teal2 mb-3"/>
-      <p className="text-sm text-white/85 leading-relaxed">"{quote}"</p>
-      <div className="mt-4 flex items-center gap-2.5 pt-4 border-t border-white/5">
-        <div className={`h-9 w-9 rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white font-extrabold text-sm shadow border border-white/20`}>{initial}</div>
-        <div>
-          <p className="text-sm text-white font-bold leading-tight">{who}</p>
-          <p className="text-[10px] text-white/40">{role}</p>
-        </div>
       </div>
     </div>
   )

@@ -3,7 +3,7 @@ import { X, QrCode, Search, ArrowRight, Users, CreditCard } from 'lucide-react'
 
 const CONTACTS = [
   { id: 'sarah',   name: 'Sarah Bennett',    sub: 'Last sent: £20 · Fri', initial: 'S', color: 'from-pink-500 to-rose-500' },
-  { id: 'tom',     name: 'Tom Whitaker',     sub: 'Tap to pay',           initial: 'T', color: 'from-amber-500 to-amber-600' },
+  { id: 'tom',     name: 'Tom Sutton',       sub: 'Tap to pay',           initial: 'T', color: 'from-amber-500 to-amber-600' },
   { id: 'church',  name: 'Hud. Christian F.',sub: 'Standing order active',initial: 'H', color: 'from-teal-500 to-emerald-500' },
   { id: 'natalie', name: 'Natalie Howard',   sub: 'Owes £14 (split)',     initial: 'N', color: 'from-blue-500 to-indigo-500' },
   { id: 'leo',     name: 'Leo Ramirez',      sub: 'Tap to pay',           initial: 'L', color: 'from-fuchsia-500 to-purple-500' }

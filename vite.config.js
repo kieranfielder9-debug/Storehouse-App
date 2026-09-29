@@ -11,7 +11,7 @@ export default defineConfig({
       manifest: {
         name: 'Storehouse',
         short_name: 'Storehouse',
-        description: 'Where your treasure is — faith-aligned banking, investing & giving.',
+        description: 'Where your treasure is — faith-aligned budgeting, giving and stewardship.',
         theme_color: '#0B0F19',
         background_color: '#0B0F19',
         display: 'standalone',

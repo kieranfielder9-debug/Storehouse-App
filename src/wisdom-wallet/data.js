@@ -22,6 +22,4 @@ export const TRACKS = [
   { key: 'family', label: 'Family', age: 'All together',icon: Sparkles,  color: 'from-fuchsia-500 to-purple-500'   }
 ]
 
-export const STATS = { learners: '2,840', families: '512', modules: 47, completions: '14,200' }
-
 export const ICONS = { ChevronRight, Award, Clock, Star, Shield, Sparkles }

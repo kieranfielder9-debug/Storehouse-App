@@ -33,6 +33,10 @@ export function TopNav({ active = 'library' }) {
   ]
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-midnight/85 border-b border-white/5">
+      {/* Persistent preview note: this public site is illustrative, not a live product. */}
+      <p className="px-8 py-1.5 text-center text-[11px] font-medium text-gold bg-gold/10 border-b border-gold/20">
+        Wisdom Wallet is a preview and isn't live yet. What you see here is illustrative.
+      </p>
       <div className="max-w-7xl mx-auto px-8 h-[72px] flex items-center justify-between">
         <div className="flex items-center gap-10">
           <WWMark />
@@ -69,7 +73,7 @@ export function Footer() {
         <div className="col-span-2">
           <WWMark/>
           <p className="text-[13px] text-white/55 mt-3 max-w-xs leading-relaxed">
-            The biblical money curriculum built into the Storehouse stewardship app. Trusted by 500+ Christian families across the UK.
+            The biblical money curriculum built into the Storehouse stewardship app.
           </p>
         </div>
         {[
@@ -87,7 +91,7 @@ export function Footer() {
       </div>
       <div className="border-t border-white/5">
         <div className="max-w-7xl mx-auto px-8 py-5 flex items-center justify-between">
-          <p className="text-[11px] text-white/40">© 2026 Storehouse Group Ltd · Registered in England 14820194</p>
+          <p className="text-[11px] text-white/40">© 2026 Storehouse</p>
           <p className="text-[11px] text-white/40 italic">"Where your treasure is, there your heart will be also." — Matt. 6:21</p>
         </div>
       </div>

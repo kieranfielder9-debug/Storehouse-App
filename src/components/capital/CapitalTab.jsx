@@ -66,7 +66,7 @@ export default function CapitalTab({ onInvest, flashToast }) {
           <span className="text-[10px] uppercase tracking-widest font-bold text-gold">Featured Cause</span>
         </div>
         <p className="text-sm text-white mt-1.5 font-semibold leading-snug">
-          {featured.name} is {featured.pct}% funded, backed by {featured.backers} Storehouse stewards.
+          {featured.name} is {featured.pct}% funded. Illustrative projects — Kingdom Capital isn't live yet.
         </p>
       </button>
 

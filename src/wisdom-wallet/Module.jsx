@@ -10,7 +10,7 @@ export default function Module({ moduleId = 't1', onBack, onStartLesson }) {
     { n: 3, title: 'Burying what God has given you',           done: false, duration: '4 min', verse: 'Matthew 25:24-27', current: true },
     { n: 4, title: 'Multiplying with risk vs greed',            done: false, duration: '5 min', verse: 'Ecc. 11:1-2' },
     { n: 5, title: 'Your talents in 2026',                     done: false, duration: '4 min', verse: 'Romans 12:6-8' },
-    { n: 6, title: 'Project: Invest £5 with Storehouse',       done: false, duration: '3 min', verse: 'James 2:14-17', lock: false, project: true }
+    { n: 6, title: 'Project: Plan your first £5 — save some, give some', done: false, duration: '3 min', verse: 'James 2:14-17', lock: false, project: true }
   ]
 
   return (
@@ -42,14 +42,6 @@ export default function Module({ moduleId = 't1', onBack, onStartLesson }) {
                     <Heart className="h-4 w-4"/> Save
                   </button>
                 </div>
-                <div className="mt-6 flex items-center gap-3">
-                  <div className="flex -space-x-2">
-                    {['J','S','A','M'].map((l, i) => (
-                      <div key={i} className={`h-7 w-7 rounded-full border-2 border-white text-[10px] font-bold text-white flex items-center justify-center ${['bg-rose-500','bg-blue-500','bg-amber-500','bg-fuchsia-500'][i]}`}>{l}</div>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-white/85">1,240 teens finished this module · 4.9★ (312)</p>
-                </div>
               </div>
             </div>
 
@@ -63,7 +55,7 @@ export default function Module({ moduleId = 't1', onBack, onStartLesson }) {
                   'How to identify YOUR talents at age 16',
                   'How to take Kingdom risks vs sinful gambles',
                   'A real plan to multiply one talent in 90 days',
-                  'How to invest your first £5 the right way'
+                  'How to plan your first £5: what to save, what to give'
                 ].map(t => (
                   <div key={t} className="flex items-start gap-2">
                     <div className="h-5 w-5 rounded-full bg-teal2/15 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -120,7 +112,7 @@ export default function Module({ moduleId = 't1', onBack, onStartLesson }) {
               <h3 className="text-base font-extrabold text-white">When you finish this module</h3>
               <div className="mt-3 space-y-2.5">
                 <Reward icon={Award}    label="Earn the 'Faithful Steward' badge"/>
-                <Reward icon={BookOpen} label="Unlock 'Multiply £5' project in app"/>
+                <Reward icon={BookOpen} label="Unlock the 'Plan your £5' project in app"/>
                 <Reward icon={Heart}    label="Receive £5 stewardship reward"/>
                 <Reward icon={Users}    label="Parent gets a progress notification"/>
               </div>

@@ -69,7 +69,7 @@ export default function Lesson({ onBack, onComplete }) {
             <p className="text-[10px] uppercase tracking-widest text-gold font-bold">In real life</p>
           </div>
           <p className="text-base text-white/85 leading-relaxed">
-            You're 16. You have £40 from chores sat in a jar. The "buried talent" move is leaving it there for three years. The "faithful steward" move is putting it where it can grow — even £40 in a Stocks & Shares ISA at 7% average return becomes <strong className="text-teal2">£105 by age 25</strong>.
+            You're 16. You have £40 from chores sat in a jar. The "buried talent" move is leaving it there for nine years. The "faithful steward" move is putting it somewhere it can grow. Stocks & Shares ISAs are for people aged 18 and over, so at your age that means a Junior ISA, which a parent or guardian opens for you. To picture it: £40 growing at an <em>illustrative</em> 7% a year would be about <strong className="text-teal2">£74 by age 25</strong>. Real returns aren't guaranteed, and the value can go down as well as up.
           </p>
         </div>
 

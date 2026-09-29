@@ -73,12 +73,12 @@ export default function Completion() {
               </div>
               <h2 className="text-2xl font-extrabold text-white">£5 stewardship reward sent to your Wisdom Wallet.</h2>
               <p className="mt-2 text-base text-white/75 leading-relaxed">
-                Now choose how to multiply it. Open Storehouse to give it to a cause, invest in your first Kingdom Capital project, or save it toward your big goal.
+                Now decide what to do with it. Talk it over with a parent, then plan how much to give to a cause, how much to save, and what to put toward your big goal.
               </p>
 
               <div className="mt-5 flex gap-2">
                 <Pill icon={Heart}   label="Give to a cause" />
-                <Pill icon={Star}    label="Invest £5"      />
+                <Pill icon={Star}    label="Plan your £5"  />
                 <Pill icon={Award}   label="Save it"        />
               </div>
 
