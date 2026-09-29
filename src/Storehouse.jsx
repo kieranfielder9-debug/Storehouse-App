@@ -59,8 +59,15 @@ export default function Storehouse() {
   // failed refresh) — without this, an already-open tab would keep showing
   // cached ledger/goals data under a dead session. No-op in sandbox mode.
   // Also picks up the initial session resolution once loading completes.
+  // One deliberate exception: signed-out -> signed-in is never inferred from the
+  // provider. AuthFlow calls onAuthenticated() when its steps are done, and in
+  // live mode verifyOtp() creates the session BEFORE a new user's push/details
+  // steps — following the provider here unmounted AuthFlow mid-flow, so new
+  // users skipped straight to the dashboard and were never asked for a name.
   useEffect(() => provider.subscribe(() => {
-    if (!provider.isLoading()) setSignedIn(provider.hasSession())
+    if (provider.isLoading()) return
+    const has = provider.hasSession()
+    setSignedIn((prev) => (prev === false && has ? prev : has))
   }), [])
 
   // Weekly Stewardship Reflection: Sunday evenings (once/week) + sandbox trigger
