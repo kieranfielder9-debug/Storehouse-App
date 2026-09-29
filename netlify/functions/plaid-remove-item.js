@@ -59,7 +59,12 @@ exports.handler = async (event) => {
 
     return json(200, { ok: true })
   } catch (err) {
-    console.error('plaid-remove-item error:', err)
-    return json(500, { error: 'Could not remove bank connection', detail: err.message })
+    // Same rule as the other Plaid functions: never log the raw error object
+    // (an AxiosError carries the PLAID-SECRET header) and never send internal
+    // error text back to the browser.
+    console.error('plaid-remove-item error:', err.response
+      ? { status: err.response.status, data: err.response.data }
+      : { message: err.message })
+    return json(500, { error: 'Could not remove bank connection' })
   }
 }

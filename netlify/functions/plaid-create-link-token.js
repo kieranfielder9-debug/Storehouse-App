@@ -35,7 +35,14 @@ exports.handler = async (event) => {
 
     return json(200, { link_token: res.data.link_token })
   } catch (err) {
-    console.error('plaid-create-link-token error:', err)
-    return json(500, { error: 'Could not create link token', detail: err.message })
+    // Never log `err` itself: with the Plaid SDK it is an AxiosError whose
+    // .config.headers carries PLAID-SECRET (and .config.data the request
+    // body), so console.error(err) writes the secret into the Netlify logs.
+    // Log only Plaid's own response body + status (or the bare message for
+    // non-HTTP failures). Nothing internal goes back to the browser either.
+    console.error('plaid-create-link-token error:', err.response
+      ? { status: err.response.status, data: err.response.data }
+      : { message: err.message })
+    return json(500, { error: 'Could not create link token' })
   }
 }
