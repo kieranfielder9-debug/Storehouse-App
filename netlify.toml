@@ -2,6 +2,27 @@
   command = "npm run build"
   publish = "dist"
   functions = "netlify/functions"
+  # Skip the build (and its deploy credits) when nothing that goes INTO the
+  # build changed since the last deployed commit: exit 0 = cancel the build,
+  # non-zero = build. The path list is every build input — src/, public/,
+  # index.html, the Vite/Tailwind/PostCSS configs, package.json + lockfile,
+  # this file, and the Netlify functions. docs/, supabase/, .claude/, CLAUDE.md,
+  # verify-backend.mjs, capture*.mjs and scripts/ are deliberately absent.
+  # The leading `[ -n ... ]` and trailing `|| exit 1` make it fail safe: with no
+  # cached ref (first build) or a ref git can't resolve, we build anyway.
+  # If you add a new build input, add its path here.
+  ignore = "[ -n \"$CACHED_COMMIT_REF\" ] && git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- src/ public/ index.html vite.config.js tailwind.config.js postcss.config.js package.json package-lock.json netlify.toml netlify/functions/ || exit 1"
 
 [functions]
   external_node_modules = ["plaid", "@supabase/supabase-js"]
+
+# Security headers on every response. frame-ancestors only (no full CSP yet) —
+# stops the site being framed for clickjacking.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    Content-Security-Policy = "frame-ancestors 'none'"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
