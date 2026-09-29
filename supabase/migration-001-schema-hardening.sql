@@ -1,10 +1,14 @@
 -- =============================================================
 -- Storehouse — Schema hardening migration (PENDING FOUNDER APPROVAL)
--- Date: 2026-07-23
--- Impact: Adds updated_at triggers, CHECK constraint on ledger.amount,
---         multi-bank support for plaid_items, and updated_at on core tables.
---         All changes are additive or ALTER — no existing data is lost.
+-- Date: 2026-07-23 (rewritten 2026-09-29: key swap reordered, re-runnable,
+--       zero-amount-safe — the first version errored as one transaction and,
+--       run statement by statement, left plaid_items with no primary key)
+-- Impact: Adds updated_at + triggers, a non-zero CHECK on ledger.amount, an
+--         id primary key for plaid_items (user_id stays UNIQUE — one bank per
+--         user), institution_name, and ON DELETE SET NULL on
+--         reward_requests.approved_by. No existing data is deleted or rewritten.
 --         SAFE TO RUN on a live database with existing rows.
+--         SAFE TO RE-RUN: every step is guarded, a second run changes nothing.
 --
 -- ⚠️  This migration is FLAGGED for manual approval per the guardrails.
 --    Do NOT run this without the founder's explicit sign-off.
@@ -50,50 +54,106 @@ create trigger set_updated_at_plaid
 
 -- ---- 2. CHECK constraint: ledger.amount must be non-zero ----
 -- Prevents bad data from empty form submissions or API errors.
--- Existing zero-amount rows (if any) would need to be cleaned up first:
---   delete from public.ledger where amount = 0;
-alter table public.ledger
-  add constraint ledger_amount_nonzero check (amount <> 0);
+-- Added NOT VALID so a legacy zero-amount row can't make this migration fail:
+-- the rule is enforced for every new or edited row straight away, and existing
+-- rows are checked only by the VALIDATE step below. (Adding it as a plain
+-- CHECK would scan and reject the whole statement on the first zero row.)
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.ledger'::regclass and conname = 'ledger_amount_nonzero'
+  ) then
+    alter table public.ledger
+      add constraint ledger_amount_nonzero check (amount <> 0) not valid;
+  end if;
 
--- ---- 3. Multi-bank support: plaid_items ----
--- Currently user_id is the PK, allowing only one bank per user.
--- This migration adds a surrogate id PK, makes user_id a regular column
--- with a unique index (one active item per user per institution), and
--- adds institution_name for display without needing a separate API call.
+  if not exists (select 1 from public.ledger where amount = 0) then
+    alter table public.ledger validate constraint ledger_amount_nonzero;
+  else
+    raise notice 'ledger has zero-amount rows, so ledger_amount_nonzero is left NOT VALID: it is enforced for new and edited rows, but editing one of those old rows will be rejected until its amount is corrected. Review them (select * from public.ledger where amount = 0), fix or delete, then run: alter table public.ledger validate constraint ledger_amount_nonzero;';
+  end if;
+end $$;
+
+-- ---- 3. plaid_items: surrogate id primary key, user_id stays unique ----
+-- Originally user_id is the PRIMARY KEY. This gives the table its own id
+-- primary key and demotes user_id to a NOT NULL UNIQUE column: still one
+-- active Plaid item per user (the MVP scope), and the row's identity no longer
+-- doubles as the owner. plaid-exchange-public-token.js upserts with
+-- onConflict: 'user_id', which resolves against the primary key before this
+-- migration and against plaid_items_user_id_key after it — so re-linking a
+-- bank replaces the row in both states.
 --
--- ⚠️ This changes the table structure. The upsert in plaid-exchange-public-token.js
---    uses user_id as the conflict target — it will need updating to use
---    a composite unique constraint on (user_id, item_id) instead. The
---    serverless function code is already updated in this commit to match.
+-- Order matters (the first version got it backwards and failed with "multiple
+-- primary keys"): keep user_id unique -> drop the old primary key -> add the new one.
 
--- Step 3a: Add surrogate id column
-alter table public.plaid_items
-  add column if not exists id bigint generated always as identity primary key;
+-- Step 3a: user_id unique first, so uniqueness is never lost part-way through.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.plaid_items'::regclass and conname = 'plaid_items_user_id_key'
+  ) then
+    alter table public.plaid_items add constraint plaid_items_user_id_key unique (user_id);
+  end if;
+end $$;
 
--- Step 3b: Drop the user_id primary key constraint
--- (Supabase names this constraint plaid_items_pkey by default)
-alter table public.plaid_items
-  drop constraint if exists plaid_items_pkey;
+-- Step 3b: swap the primary key. Decided by what the primary key IS, not by
+-- whether an id column exists, so it also repairs a table left half-migrated by
+-- the old script (no primary key at all, with or without an id column):
+--   PK already on id  -> nothing to do
+--   PK on user_id     -> drop it, then add id + make it the PK
+--   no PK             -> add id if missing, make it the PK
+do $$
+declare
+  pk_name text;
+  pk_cols text;
+begin
+  select c.conname,
+         (select string_agg(a.attname, ',' order by k.ord)
+            from unnest(c.conkey) with ordinality as k(attnum, ord)
+            join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum)
+    into pk_name, pk_cols
+    from pg_constraint c
+    where c.conrelid = 'public.plaid_items'::regclass and c.contype = 'p';
 
--- Step 3c: Add institution_name column for display
-alter table public.plaid_items
-  add column if not exists institution_name text;
+  if pk_cols = 'id' then
+    return;
+  end if;
 
--- Step 3d: Make user_id a regular column with a unique constraint
--- (one active Plaid item per user — multiple banks would need a different
---  table structure or a status column; for now, one active item is the
---  MVP scope, but this at least doesn't use user_id AS the PK)
-alter table public.plaid_items
-  add constraint plaid_items_user_id_key unique (user_id);
+  if pk_name is not null then
+    execute format('alter table public.plaid_items drop constraint %I', pk_name);
+  end if;
+  alter table public.plaid_items alter column user_id set not null;
+  if not exists (
+    select 1 from pg_attribute
+    where attrelid = 'public.plaid_items'::regclass and attname = 'id' and not attisdropped
+  ) then
+    alter table public.plaid_items add column id bigint generated always as identity;
+  end if;
+  alter table public.plaid_items add primary key (id);
+end $$;
+
+-- Step 3c: institution_name, for display without an extra API call.
+alter table public.plaid_items add column if not exists institution_name text;
 
 -- ---- 4. Add ON DELETE SET NULL to reward_requests.approved_by ----
 -- Currently if a user is deleted, their reward approvals would have
 -- dangling FK references. This makes the FK nullable on delete.
-alter table public.reward_requests
-  drop constraint if exists reward_requests_approved_by_fkey;
-alter table public.reward_requests
-  add constraint reward_requests_approved_by_fkey
-  foreign key (approved_by) references public.users (auth_id) on delete set null;
+-- (Skipped, with a notice, on a database that predates the household tables.)
+do $$
+begin
+  if to_regclass('public.reward_requests') is null then
+    raise notice 'reward_requests not found - skipping step 4.';
+    return;
+  end if;
+
+  alter table public.reward_requests
+    drop constraint if exists reward_requests_approved_by_fkey;
+  alter table public.reward_requests
+    add constraint reward_requests_approved_by_fkey
+    foreign key (approved_by) references public.users (auth_id) on delete set null;
+end $$;
 
 -- ---- 5. Future: TCE for plaid_items.access_token ----
 -- This requires pgsodium to be enabled in Supabase (Dashboard → Database →

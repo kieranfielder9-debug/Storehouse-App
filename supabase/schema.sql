@@ -3,8 +3,9 @@
 -- Tables: users, stewardship_goals, ledger, reflections, plaid_items,
 --         household_members, reward_requests
 -- Every table has Row-Level Security: a user can only ever touch
--- rows where user_id = auth.uid(). plaid_items is deny-all to
--- clients — only the serverless functions (service role) read it.
+-- rows where user_id = auth.uid(). users is read-only to clients (the signup
+-- trigger writes it). plaid_items is deny-all to clients — only the
+-- serverless functions (service role) read it.
 --
 -- household_members / reward_requests: a household member (e.g. "Ethan")
 -- is a SUB-RECORD owned by the account holder — not a separate login/auth
@@ -14,10 +15,15 @@
 -- decision-maker for anything involving a minor's money.
 -- =============================================================
 
+-- Display copy of the auth identity, written ONLY by the signup trigger below.
+-- email is deliberately NOT unique: auth.users already enforces unique emails,
+-- and a second unique constraint here can only ever break signups (a clashing
+-- row makes handle_new_user() fail, which rolls back the whole signup).
+-- See supabase/migration-003-security-hardening.sql.
 create table public.users (
   auth_id uuid primary key references auth.users (id) on delete cascade,
   name    text,
-  email   text unique
+  email   text
 );
 
 create table public.stewardship_goals (
@@ -90,7 +96,13 @@ alter table public.plaid_items       enable row level security;  -- no policies 
 alter table public.household_members enable row level security;
 alter table public.reward_requests   enable row level security;
 
-create policy "own profile"     on public.users             for all using (auth.uid() = auth_id) with check (auth.uid() = auth_id);
+-- users is READ-ONLY to clients: no insert/update/delete policy exists, so all
+-- writes are denied. The row is created by the signup trigger (security
+-- definer) and nothing in the app writes it. A writable policy here let any
+-- signed-in user set their email to someone else's (squatting it, and breaking
+-- that person's signup) or delete their own row (cascading away plaid_items
+-- without revoking the token at Plaid).
+create policy "own profile"     on public.users             for select using (auth.uid() = auth_id);
 create policy "own goals"       on public.stewardship_goals for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own ledger"      on public.ledger            for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own reflections" on public.reflections       for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
@@ -98,9 +110,20 @@ create policy "own household"   on public.household_members for all using (auth.
 
 -- reward_requests has no auth_id column of its own — ownership is via the
 -- household_members join, same single-owner check, just one hop over.
+-- WITH CHECK also pins approved_by to the caller: the column is an FK to any
+-- users row, so without this a client could record someone else as the approver.
 create policy "own household rewards" on public.reward_requests for all
   using (auth.uid() = (select auth_id from public.household_members where id = household_member_id))
-  with check (auth.uid() = (select auth_id from public.household_members where id = household_member_id));
+  with check (
+    auth.uid() = (select auth_id from public.household_members where id = household_member_id)
+    and approved_by = auth.uid()
+  );
+
+-- Backstop: plaid_items already has RLS enabled with no policies (deny-all), but
+-- Supabase also grants API roles table privileges by default. Remove them so a
+-- future mistaken policy can't expose access tokens. The serverless functions
+-- use the service role, which is unaffected.
+revoke all on public.plaid_items from anon, authenticated;
 
 -- ---------------- Auto-provision on signup ----------------
 -- FIX (2026-07-20, after a live signup bug): every real signUp() call on
@@ -147,6 +170,11 @@ drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- Backstop: this is a trigger function, not an API. Supabase grants EXECUTE on
+-- new public functions to PUBLIC/anon/authenticated by default; take that away.
+-- (The grant to supabase_auth_admin below is the only one that matters.)
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
 
 -- Re-assert the privileges GoTrue's own connection role needs to fire this
 -- trigger at all, in case a broader hardening pass (e.g. "revoke execute on
