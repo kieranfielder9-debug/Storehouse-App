@@ -8,10 +8,12 @@
   # index.html, the Vite/Tailwind/PostCSS configs, package.json + lockfile,
   # .nvmrc, this file, and the Netlify functions. docs/, supabase/, .claude/, CLAUDE.md,
   # verify-backend.mjs, capture*.mjs and scripts/ are deliberately absent.
-  # The leading `[ -n ... ]` and trailing `|| exit 1` make it fail safe: with no
-  # cached ref (first build) or a ref git can't resolve, we build anyway.
+  # The leading `[ -n ... ]` checks and trailing `|| exit 1` make it fail safe: with
+  # no cached ref, a cached ref equal to this commit (Netlify sets it that way when
+  # the build cache is missing, and on "Retry deploy") or a ref git can't resolve,
+  # we build anyway.
   # If you add a new build input, add its path here.
-  ignore = "[ -n \"$CACHED_COMMIT_REF\" ] && git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- src/ public/ index.html vite.config.js tailwind.config.js postcss.config.js package.json package-lock.json .nvmrc netlify.toml netlify/functions/ || exit 1"
+  ignore = "[ -n \"$CACHED_COMMIT_REF\" ] && [ \"$CACHED_COMMIT_REF\" != \"$COMMIT_REF\" ] && git diff --no-renames --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- src/ public/ index.html vite.config.js tailwind.config.js postcss.config.js package.json package-lock.json .nvmrc netlify.toml netlify/functions/ || exit 1"
 
 [functions]
   external_node_modules = ["plaid", "@supabase/supabase-js"]
@@ -22,9 +24,11 @@
   NODE_VERSION = "22"
   # VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are public by design: Vite inlines them
   # into the browser bundle and Row-Level Security, not secrecy, protects the data.
-  # Exempt only these two from Netlify's secret scanner so it can't fail the build on
-  # them; every other variable (service-role key, Plaid secret) stays scanned.
-  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY"
+  # Exempt them from Netlify's secret scanner so it can't fail the build on them.
+  # SUPABASE_URL (the server-side copy the Plaid functions read) holds the same
+  # public project URL, so the scanner finds its value in the bundle too — it must
+  # be exempt as well. Every real secret (service-role key, Plaid secret) stays scanned.
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,SUPABASE_URL"
 
 # Security headers on every response. frame-ancestors only (no full CSP yet) —
 # stops the site being framed for clickjacking.
