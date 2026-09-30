@@ -581,7 +581,7 @@ async function connectPlaidLive() {
   const { data: { session } } = await sb.auth.getSession()
   if (!session) throw new Error('No active session — please sign in again.')
 
-  const linkRes = await fetch('/.netlify/functions/plaid-create-link-token', {
+  const linkRes = await fetch('/api/plaid-create-link-token', {
     method: 'POST',
     headers: { Authorization: `Bearer ${session.access_token}` }
   })
@@ -600,7 +600,7 @@ async function connectPlaidLive() {
       token: link_token,
       onSuccess: async (public_token, metadata) => {
         try {
-          const exchangeRes = await fetch('/.netlify/functions/plaid-exchange-public-token', {
+          const exchangeRes = await fetch('/api/plaid-exchange-public-token', {
             method: 'POST',
             headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ public_token })
@@ -630,7 +630,7 @@ async function disconnectPlaidLive() {
   const { data: { session } } = await sb.auth.getSession()
   if (!session) throw new Error('No active session — please sign in again.')
 
-  const res = await fetch('/.netlify/functions/plaid-remove-item', {
+  const res = await fetch('/api/plaid-remove-item', {
     method: 'POST',
     headers: { Authorization: `Bearer ${session.access_token}` }
   })

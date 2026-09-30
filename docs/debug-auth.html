@@ -15,12 +15,12 @@
 <body>
 <h1>Storehouse — raw Supabase connectivity test (v4)</h1>
 <p>This bypasses the app entirely and uses a hardcoded, known-correct bare
-project URL (no path suffix) — NOT whatever is set in Netlify's
+project URL (no path suffix) — NOT whatever is set in Vercel's
 VITE_SUPABASE_URL. Tap a button, read the box below.</p>
 <p>If "4. Test OTP send" fails here with the same "Invalid path specified in
 request URL" error seen on the live site, the problem is on the Supabase
-project/Auth-server side, not the Netlify env var. If it SUCCEEDS here,
-that points at VITE_SUPABASE_URL being malformed in Netlify's env vars.</p>
+project/Auth-server side, not the Vercel env var. If it SUCCEEDS here,
+that points at VITE_SUPABASE_URL being malformed in Vercel's env vars.</p>
 
 <label>Test email</label>
 <input id="email" value="" />

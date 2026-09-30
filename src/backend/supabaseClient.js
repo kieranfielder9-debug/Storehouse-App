@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Live mode activates automatically when these env vars exist (.env / Netlify env).
+// Live mode activates automatically when these env vars exist (.env / Vercel env).
 // Without them the app runs in Sandbox mode (localStorage) — zero setup required.
 const rawUrl = import.meta.env.VITE_SUPABASE_URL
 const rawAnon = import.meta.env.VITE_SUPABASE_ANON_KEY
 // Trim only — an anon key has no other structure worth validating here.
 // Guards against a stray leading/trailing space or newline from a
-// copy-paste (e.g. pasting into Netlify's env var UI from a phone), which
+// copy-paste (e.g. pasting into Vercel's env var UI from a phone), which
 // would otherwise still pass the `anon` truthiness check below and reach
 // createClient() with a malformed Authorization header on every request.
 const anon = typeof rawAnon === 'string' ? rawAnon.trim() : rawAnon
@@ -19,14 +19,14 @@ const anon = typeof rawAnon === 'string' ? rawAnon.trim() : rawAnon
  *  edge rejects that outright with a generic "Invalid path specified in
  *  request URL" — not a normal GoTrue JSON error, so it wouldn't otherwise
  *  be caught by mapAuthError()'s pattern matching below. Normalising here
- *  is a safety net for a copy-paste mistake in the Netlify env var; it does
+ *  is a safety net for a copy-paste mistake in the Vercel env var; it does
  *  nothing when the value is already a bare URL. */
 function normalizeSupabaseUrl(u) {
   if (!u) return u
   const trimmed = u.trim()
   const stripped = trimmed.replace(/\/+$/, '').replace(/\/(rest|auth|storage|realtime|functions)\/v1$/i, '')
   if (stripped !== trimmed) {
-    console.warn(`[supabase] VITE_SUPABASE_URL looks malformed ("${trimmed}") — using "${stripped}" instead. Fix the Netlify env var so this warning goes away.`)
+    console.warn(`[supabase] VITE_SUPABASE_URL looks malformed ("${trimmed}") — using "${stripped}" instead. Fix the Vercel env var so this warning goes away.`)
   }
   return stripped
 }

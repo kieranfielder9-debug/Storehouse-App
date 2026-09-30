@@ -1,6 +1,6 @@
 # Storehouse
 
-Faith-aligned personal finance app. React 18 + Vite + Tailwind + lucide-react frontend; Supabase (Postgres, Auth, RLS, Realtime) backend; Netlify hosting + Functions; Plaid for bank linking (currently simulated in sandbox mode). Live at storehouse-uk.com.
+Faith-aligned personal finance app. React 18 + Vite + Tailwind + lucide-react frontend; Supabase (Postgres, Auth, RLS, Realtime) backend; Vercel hosting + Functions (api/); Plaid for bank linking (currently simulated in sandbox mode). Live at storehouse-uk.com.
 
 Brand: Deep Midnight background (#0B0F19), Trust Navy cards (#111C30), Teal gradient accent (#0D9488 → #14B8A6), gold for investment/reward highlights (#F4C56A). Tone: warm, faith-literate, plain-spoken — never preachy, never salesy.
 
@@ -45,4 +45,4 @@ Note: this roster folds the former standalone `baas-partnerships-lead` role into
 - Small proof before big bets. A working, honest, narrow thing today beats a perfect six-month plan.
 - Delegate, don't hoard. The orchestrator coordinates; the named specialists do the specialist work.
 - Your money, your risk, your call. Specialists surface tradeoffs and flag regulatory lines; the account owner makes the final call on anything with real financial or legal weight.
-- Every push to `main` is a live production deploy — and on Netlify's credit-based plans each one costs 15 of 300 free monthly credits. Verify before pushing, and batch changes into as few pushes as practical.
+- Every push to `main` is a live production deploy (Vercel builds it automatically). Verify before pushing, and batch changes into as few pushes as practical.

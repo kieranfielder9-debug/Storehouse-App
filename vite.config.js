@@ -5,23 +5,23 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Production guard. Without VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY the app
 // silently runs in SANDBOX mode (src/backend/supabaseClient.js): localStorage
 // only, and anyone can "sign in" with any email and any 6-digit code. A
-// missing or misnamed env var in Netlify would therefore put a fake-login app
-// on the live domain with no error anywhere — so a Netlify *production* build
-// (NETLIFY=true, CONTEXT=production) fails loudly instead. Local
-// `npm run dev` / `npm run build`, deploy previews and branch deploys are
-// unaffected and keep working without a .env (sandbox mode).
-function requireSupabaseEnvOnNetlifyProduction() {
+// missing or misnamed env var in Vercel would therefore put a fake-login app
+// on the live domain with no error anywhere — so a Vercel *production* build
+// (VERCEL=1, VERCEL_ENV=production) fails loudly instead. Local
+// `npm run dev` / `npm run build` and preview deployments are unaffected and
+// keep working without a .env (sandbox mode).
+function requireSupabaseEnvOnVercelProduction() {
   return {
     name: 'storehouse-require-supabase-env',
     config(_, { command, mode }) {
-      if (command !== 'build' || process.env.NETLIFY !== 'true' || process.env.CONTEXT !== 'production') return
+      if (command !== 'build' || process.env.VERCEL !== '1' || process.env.VERCEL_ENV !== 'production') return
       const env = loadEnv(mode, process.cwd(), 'VITE_')
       const missing = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY'].filter((key) => !(env[key] || '').trim())
       if (missing.length === 0) return
       throw new Error(
-        `\n\n[storehouse] BUILD STOPPED: ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set for this Netlify production build.\n` +
+        `\n\n[storehouse] BUILD STOPPED: ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} not set for this Vercel production build.\n` +
         `Without ${missing.length > 1 ? 'them' : 'it'} the site would deploy in sandbox mode, where anyone can "sign in" with any email and code.\n` +
-        `Fix: Netlify > Site configuration > Environment variables — add ${missing.join(' and ')} (available to builds), then redeploy.\n`
+        `Fix: Vercel > Project > Settings > Environment Variables — add ${missing.join(' and ')} for the Production environment, then redeploy.\n`
       )
     }
   }
@@ -29,7 +29,7 @@ function requireSupabaseEnvOnNetlifyProduction() {
 
 export default defineConfig({
   plugins: [
-    requireSupabaseEnvOnNetlifyProduction(),
+    requireSupabaseEnvOnVercelProduction(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',

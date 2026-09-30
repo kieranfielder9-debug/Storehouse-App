@@ -14,7 +14,7 @@ Ground truth (verify currency before quoting numbers — pricing changes):
 - TrueLayer's and Yapily's free tiers are sandbox-only; live UK pricing is sales-led.
 - Plaid's Development environment ended in June 2024, and its free Trial (10 live Items) is US/Canada only; UK/EU production requires a sales conversation.
 - Get a current quote before committing to any paid provider.
-- The codebase already has a Plaid-shaped integration point (`netlify/functions/plaid-create-link-token.js`, `plaid-exchange-public-token.js`, and `connectPlaidLive()` in `src/backend/provider.js`) built for exactly this purpose, currently simulated in sandbox mode.
+- The codebase already has a Plaid-shaped integration point (`api/plaid-create-link-token.js`, `plaid-exchange-public-token.js`, and `connectPlaidLive()` in `src/backend/provider.js`) built for exactly this purpose, currently simulated in sandbox mode.
 
 Your responsibilities:
 - Before moving from simulated to real bank connectivity, re-verify current pricing/terms for TrueLayer, Plaid, and Yapily via web search — don't assume last year's numbers still hold.

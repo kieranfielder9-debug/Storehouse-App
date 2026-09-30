@@ -71,7 +71,7 @@ We don't currently have a fixed backup-retention window written down; a solicito
 We use a small number of service providers to run Storehouse. They process data on our behalf as **data processors** — they don't get to use your data for their own purposes.
 
 - **Supabase** — our database, authentication, and real-time backend provider. All of the tables listed in Section 2 live in Supabase's infrastructure. Every table is protected by row-level security, meaning the database itself enforces that you can only ever read or write your own data — not just the application code.
-- **Netlify** — hosts the Storehouse web app and its serverless functions.
+- **Vercel** — hosts the Storehouse web app and its serverless functions.
 - **Plaid** — a bank-connection provider. **Not yet active.** If and when real bank sync launches, Plaid would receive what's needed to establish and maintain that connection (see Section 2). We will not turn this on quietly; this notice will be updated and you'll be asked for fresh consent tied specifically to that feature.
 
 We do not sell your data. We do not share it with advertisers. We would only share it with a regulator or law enforcement body where we're legally required to.
@@ -99,7 +99,7 @@ This is opt-in, not opt-out: nothing here is switched on for you by default, it'
 
 ## 7. International transfers
 
-Supabase and Netlify may process or store data outside the UK (for example, in the EU or US), depending on their own infrastructure choices. Where that happens, it's covered by their own standard contractual clauses / adequacy arrangements as UK-approved data processors. We'll list specific regions here once confirmed with each provider — this is a placeholder to be filled in before publishing, not something to skip.
+Supabase and Vercel may process or store data outside the UK (for example, in the EU or US), depending on their own infrastructure choices. Where that happens, it's covered by their own standard contractual clauses / adequacy arrangements as UK-approved data processors. We'll list specific regions here once confirmed with each provider — this is a placeholder to be filled in before publishing, not something to skip.
 
 ---
 
